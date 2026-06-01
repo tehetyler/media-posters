@@ -1,0 +1,132 @@
+import { DatabaseSync } from 'node:sqlite';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+let db;
+
+export function initDb() {
+  db = new DatabaseSync(join(__dirname, 'data.db'));
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS movies (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      tmdb_id     TEXT,
+      title       TEXT NOT NULL,
+      year        INTEGER,
+      folder_path TEXT NOT NULL UNIQUE,
+      nfo_path    TEXT NOT NULL,
+      reviewed    INTEGER NOT NULL DEFAULT 0,
+      skipped     INTEGER NOT NULL DEFAULT 0,
+      reviewed_at DATETIME,
+      added_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS scan_log (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      scanned_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      found      INTEGER NOT NULL DEFAULT 0,
+      added      INTEGER NOT NULL DEFAULT 0
+    );
+  `);
+}
+
+function d() {
+  if (!db) initDb();
+  return db;
+}
+
+export function upsertMovies(movies) {
+  const before = Number(d().prepare('SELECT COUNT(*) AS n FROM movies').get().n);
+
+  const stmt = d().prepare(`
+    INSERT INTO movies (tmdb_id, title, year, folder_path, nfo_path)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(folder_path) DO UPDATE SET
+      tmdb_id  = excluded.tmdb_id,
+      title    = excluded.title,
+      year     = excluded.year,
+      nfo_path = excluded.nfo_path
+  `);
+
+  d().exec('BEGIN');
+  try {
+    for (const m of movies) {
+      stmt.run(m.tmdbId ?? null, m.title, m.year ?? null, m.folderPath, m.nfoPath);
+    }
+    d().exec('COMMIT');
+  } catch (err) {
+    d().exec('ROLLBACK');
+    throw err;
+  }
+
+  const after  = Number(d().prepare('SELECT COUNT(*) AS n FROM movies').get().n);
+  const added  = after - before;
+
+  d().prepare('INSERT INTO scan_log (found, added) VALUES (?, ?)').run(movies.length, added);
+  return { found: movies.length, added };
+}
+
+export function getNextPending() {
+  return d().prepare(`
+    SELECT * FROM movies
+    WHERE reviewed = 0 AND skipped = 0
+    ORDER BY added_at ASC, title ASC
+    LIMIT 1
+  `).get() ?? null;
+}
+
+export function getMovieById(id) {
+  return d().prepare('SELECT * FROM movies WHERE id = ?').get(Number(id)) ?? null;
+}
+
+export function markReviewed(id) {
+  d().prepare(
+    'UPDATE movies SET reviewed = 1, reviewed_at = CURRENT_TIMESTAMP WHERE id = ?'
+  ).run(Number(id));
+}
+
+export function markSkipped(id) {
+  d().prepare('UPDATE movies SET skipped = 1 WHERE id = ?').run(Number(id));
+}
+
+export function markSkippedAsReviewed() {
+  const result = d().prepare(`
+    UPDATE movies SET skipped = 0, reviewed = 1, reviewed_at = CURRENT_TIMESTAMP
+    WHERE skipped = 1
+  `).run();
+  return result.changes;
+}
+
+export function getMovies() {
+  return d().prepare(`
+    SELECT
+      id, tmdb_id, title, year, folder_path, reviewed, skipped, reviewed_at, added_at,
+      CASE
+        WHEN reviewed = 1 THEN 'reviewed'
+        WHEN skipped  = 1 THEN 'skipped'
+        ELSE 'pending'
+      END AS status
+    FROM movies
+    ORDER BY title ASC
+  `).all();
+}
+
+export function getStats() {
+  const counts = d().prepare(`
+    SELECT
+      COUNT(*) AS total,
+      SUM(CASE WHEN reviewed = 0 AND skipped = 0 THEN 1 ELSE 0 END) AS pending,
+      SUM(CASE WHEN reviewed = 1 THEN 1 ELSE 0 END) AS reviewed,
+      SUM(CASE WHEN skipped  = 1 THEN 1 ELSE 0 END) AS skipped
+    FROM movies
+  `).get();
+  const scan = d().prepare(
+    'SELECT scanned_at FROM scan_log ORDER BY id DESC LIMIT 1'
+  ).get();
+  return {
+    total:    Number(counts.total),
+    pending:  Number(counts.pending),
+    reviewed: Number(counts.reviewed),
+    skipped:  Number(counts.skipped),
+    lastScan: scan?.scanned_at ?? null,
+  };
+}

@@ -1,0 +1,13 @@
+{
+  "name": "Movie Artwork Reviewer",
+  "short_name": "ArtReviewer",
+  "description": "Review and select poster, backdrop, and logo artwork for your movie library",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f0f1a",
+  "theme_color": "#13132a",
+  "orientation": "any",
+  "icons": [
+    { "src": "/logo.png", "sizes": "2048x2048", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
