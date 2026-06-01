@@ -3,6 +3,7 @@
   "short_name": "ArtReviewer",
   "description": "Review and select poster, backdrop, and logo artwork for your movie library",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#0f0f1a",
   "theme_color": "#13132a",

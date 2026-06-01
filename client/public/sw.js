@@ -1,9 +1,7 @@
 const CACHE = 'media-posters-v1';
 
-// On install, take control immediately
 self.addEventListener('install', () => self.skipWaiting());
 
-// On activate, drop old caches
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys()
@@ -16,20 +14,23 @@ self.addEventListener('fetch', e => {
   const { request } = e;
   const url = new URL(request.url);
 
-  // Always hit the network for API calls — data must be fresh
-  if (url.pathname.startsWith('/api/')) return;
+  // Never intercept: API calls, the SW itself, or the manifest
+  // These must always go to the network fresh and unmodified
+  if (url.pathname.startsWith('/api/') ||
+      url.pathname === '/sw.js' ||
+      url.pathname === '/manifest.json') return;
 
-  // For everything else (app shell, JS/CSS bundles, icons):
-  // serve from cache if available, fetch and cache otherwise
+  // Cache-first for everything else (app shell, JS/CSS, icons)
   e.respondWith(
     caches.match(request).then(cached => {
       if (cached) return cached;
       return fetch(request).then(res => {
         if (res.ok && request.method === 'GET') {
-          caches.open(CACHE).then(c => c.put(request, res.clone()));
+          const clone = res.clone(); // clone before body is consumed
+          caches.open(CACHE).then(c => c.put(request, clone));
         }
         return res;
-      });
+      }).catch(() => new Response('Offline', { status: 503 }));
     })
   );
 });

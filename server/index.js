@@ -19,8 +19,14 @@ app.use('/api', routes);
 // In production, serve the built React client from the same port
 const clientDist = join(__dirname, '..', 'client', 'dist');
 if (existsSync(join(clientDist, 'index.html'))) {
+  // Service worker must never be cached — stale SW breaks PWA install
+  app.get('/sw.js', (req, res) => {
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Service-Worker-Allowed', '/');
+    res.sendFile(join(clientDist, 'sw.js'));
+  });
+
   app.use(express.static(clientDist));
-  // Send index.html for all non-API routes so the SPA router works
   app.get('*', (req, res) => res.sendFile(join(clientDist, 'index.html')));
   console.log('[server] Serving production client build');
 }
