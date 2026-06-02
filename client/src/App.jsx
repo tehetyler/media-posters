@@ -106,6 +106,7 @@ function ReviewerPage({ mode, specificId, onBack }) {
   }, [mode, specificId, loadArtworkFor]);
 
   async function advance(next, stats) {
+    window.scrollTo(0, 0);
     setStats(stats);
     if (next) { setMovie(next); await loadArtworkFor(next); }
     else      { setMovie(null); setAllDone(true); }
