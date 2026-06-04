@@ -1,12 +1,17 @@
 import { useState, useEffect, useLayoutEffect, useCallback } from 'react';
 import { fetchQueue, fetchMovieById, fetchArtwork, fetchCurrentArtwork, saveSelections, skipMovie, scanNow } from './api';
-import HomePage    from './components/HomePage';
-import LibraryPage  from './components/LibraryPage';
-import OptionsPage  from './components/OptionsPage';
-import ReviewerNav  from './components/ReviewerNav';
-import ReviewScreen from './components/ReviewScreen';
+import HomePage        from './components/HomePage';
+import LibraryPage     from './components/LibraryPage';
+import OptionsPage     from './components/OptionsPage';
+import ReviewerNav     from './components/ReviewerNav';
+import ReviewScreen    from './components/ReviewScreen';
+import TvLibraryPage   from './components/TvLibraryPage';
+import TvReviewerPage  from './components/TvReviewerPage';
 
-const VIEW_URLS = { home: '/', library: '/library', reviewer: '/review', options: '/options' };
+const VIEW_URLS = {
+  home: '/', library: '/library', reviewer: '/review', options: '/options',
+  'tv-reviewer': '/tv/review', 'tv-library': '/tv/library',
+};
 
 export default function App() {
   const [view,       setView]       = useState('home');
@@ -39,10 +44,21 @@ export default function App() {
   const goOptions      = () => push('options');
   const startQueue     = () => push('reviewer', { reviewMode: 'queue' });
   const reviewSpecific = (id) => push('reviewer', { reviewMode: 'specific', specificId: id });
+  const goTvLibrary      = () => push('tv-library');
+  const startTvQueue     = () => push('tv-reviewer', { reviewMode: 'queue' });
+  const reviewTvSpecific = (id) => push('tv-reviewer', { reviewMode: 'specific', specificId: id });
 
-  if (view === 'home')     return <HomePage onQueue={startQueue} onLibrary={goLibrary} onOptions={goOptions} />;
-  if (view === 'library')  return <LibraryPage onBack={goHome} onReview={reviewSpecific} />;
-  if (view === 'options')  return <OptionsPage onBack={goHome} />;
+  if (view === 'home')        return <HomePage onQueue={startQueue} onLibrary={goLibrary} onOptions={goOptions} onTvQueue={startTvQueue} onTvLibrary={goTvLibrary} />;
+  if (view === 'library')     return <LibraryPage onBack={goHome} onReview={reviewSpecific} />;
+  if (view === 'options')     return <OptionsPage onBack={goHome} />;
+  if (view === 'tv-library')  return <TvLibraryPage onBack={goHome} onReview={reviewTvSpecific} />;
+  if (view === 'tv-reviewer') return (
+    <TvReviewerPage
+      mode={reviewMode}
+      specificId={specificId}
+      onBack={reviewMode === 'specific' ? goTvLibrary : goHome}
+    />
+  );
   if (view === 'reviewer') return (
     <ReviewerPage
       mode={reviewMode}

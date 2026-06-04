@@ -1,56 +1,98 @@
 import { useEffect, useState } from 'react';
-import { fetchStatus } from '../api';
+import { fetchStatus, fetchTvStatus } from '../api';
 
-export default function HomePage({ onQueue, onLibrary, onOptions }) {
-  const [stats, setStats] = useState(null);
+export default function HomePage({ onQueue, onLibrary, onOptions, onTvQueue, onTvLibrary }) {
+  const [movieStats, setMovieStats] = useState(null);
+  const [tvStats,    setTvStats]    = useState(null);
 
   useEffect(() => {
-    fetchStatus().then(setStats).catch(() => {});
+    fetchStatus().then(setMovieStats).catch(() => {});
+    fetchTvStatus().then(setTvStats).catch(() => {});
   }, []);
 
   return (
     <div style={s.page}>
       <header style={s.header}>
-        <img src="/logo.png" alt="Movie Artwork Reviewer" style={s.logo} />
-        <h1 style={s.title}>Movie Artwork Reviewer</h1>
-        <p style={s.sub}>Select and download artwork for your movie library</p>
+        <img src="/logo.png" alt="Artwork Reviewer" style={s.logo} />
+        <h1 style={s.title}>Media Artwork Manager</h1>
       </header>
 
-      {stats && (
-        <div style={s.stats}>
-          <StatChip label="Pending"  value={stats.pending}  color="#e2a52a" />
-          <StatChip label="Reviewed" value={stats.reviewed} color="#4caf7d" />
-          <StatChip label="Skipped"  value={stats.skipped}  color="#7a7a9a" />
-          <StatChip label="Total"    value={stats.total}    color="#555" />
+      <Section label="Movies">
+        <StatRow stats={movieStats} />
+        <div className="home-cards">
+          <Card
+            icon="🎬"
+            title="Review Queue"
+            desc="Work through movies that need artwork one by one, starting with the oldest."
+            cta="Start Reviewing"
+            ctaColor="#2563eb"
+            onClick={onQueue}
+            badge={movieStats?.pending ? `${movieStats.pending} pending` : null}
+            badgeColor="#e2a52a"
+          />
+          <Card
+            icon="📚"
+            title="Movie Library"
+            desc="Browse all movies, search by title, filter by status, and revisit any movie."
+            cta="Open Library"
+            ctaColor="#0f766e"
+            onClick={onLibrary}
+            badge={movieStats ? `${movieStats.total} movies` : null}
+            badgeColor="#555"
+          />
         </div>
-      )}
+      </Section>
 
-      <div className="home-cards">
-        <Card
-          icon="🎬"
-          title="Review Queue"
-          desc="Work through movies that need artwork one by one, starting with the oldest."
-          cta="Start Reviewing"
-          ctaColor="#2563eb"
-          onClick={onQueue}
-          badge={stats?.pending ? `${stats.pending} pending` : null}
-          badgeColor="#e2a52a"
-        />
-        <Card
-          icon="📚"
-          title="Movie Library"
-          desc="Browse all movies, search by title, filter by status, and revisit any movie."
-          cta="Open Library"
-          ctaColor="#0f766e"
-          onClick={onLibrary}
-          badge={stats ? `${stats.total} movies` : null}
-          badgeColor="#555"
-        />
-      </div>
+      <Section label="TV Shows">
+        <StatRow stats={tvStats} />
+        <div className="home-cards">
+          <Card
+            icon="📺"
+            title="Review Queue"
+            desc="Work through shows that need artwork one by one, starting with the oldest."
+            cta="Start Reviewing"
+            ctaColor="#7c3aed"
+            onClick={onTvQueue}
+            badge={tvStats?.pending ? `${tvStats.pending} pending` : null}
+            badgeColor="#e2a52a"
+          />
+          <Card
+            icon="📚"
+            title="TV Library"
+            desc="Browse all TV shows, search by title, filter by status, and revisit any show."
+            cta="Open Library"
+            ctaColor="#0f766e"
+            onClick={onTvLibrary}
+            badge={tvStats ? `${tvStats.total} shows` : null}
+            badgeColor="#555"
+          />
+        </div>
+      </Section>
 
       <div style={s.optionsRow}>
         <button onClick={onOptions} style={s.optionsBtn}>⚙ Options</button>
       </div>
+    </div>
+  );
+}
+
+function Section({ label, children }) {
+  return (
+    <div style={s.section}>
+      <div style={s.sectionLabel}>{label}</div>
+      {children}
+    </div>
+  );
+}
+
+function StatRow({ stats }) {
+  if (!stats) return null;
+  return (
+    <div style={s.stats}>
+      <StatChip label="Pending"  value={stats.pending}  color="#e2a52a" />
+      <StatChip label="Reviewed" value={stats.reviewed} color="#4caf7d" />
+      <StatChip label="Skipped"  value={stats.skipped}  color="#7a7a9a" />
+      <StatChip label="Total"    value={stats.total}    color="#555" />
     </div>
   );
 }
@@ -93,19 +135,25 @@ const s = {
   page: {
     maxWidth: 760, margin: '0 auto',
     padding: '48px 20px 40px',
-    display: 'flex', flexDirection: 'column', gap: 36,
+    display: 'flex', flexDirection: 'column', gap: 32,
   },
-  header: { textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 },
-  logo:   { width: 120, height: 120, borderRadius: '50%' },
-  title:  { fontSize: 28, fontWeight: 800, color: '#f0f0ff' },
-  sub:    { fontSize: 15, color: '#666' },
-  stats:  {
+  header:  { textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 },
+  logo:    { width: 100, height: 100, borderRadius: '50%' },
+  title:   { fontSize: 26, fontWeight: 800, color: '#f0f0ff' },
+  section: { display: 'flex', flexDirection: 'column', gap: 14 },
+  sectionLabel: {
+    fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
+    letterSpacing: '0.1em', color: '#6060a0',
+    borderBottom: '1px solid #1e1e38', paddingBottom: 8,
+  },
+  stats: {
     display: 'flex', justifyContent: 'center', gap: 32,
     background: '#13132a', border: '1px solid #252540',
-    borderRadius: 10, padding: '16px 24px',
+    borderRadius: 10, padding: '14px 24px',
+    maxWidth: 700, margin: '0 auto', width: '100%',
   },
   chip:    { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
-  chipVal: { fontSize: 22, fontWeight: 700 },
+  chipVal: { fontSize: 20, fontWeight: 700 },
   chipLbl: { fontSize: 11, color: '#555', textTransform: 'uppercase', letterSpacing: '0.06em' },
   card: {
     background: '#13132a', border: '1px solid #252540', borderRadius: 12,

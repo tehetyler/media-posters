@@ -3,7 +3,7 @@ import { proxyUrl } from '../api';
 const THUMB_HEIGHT = { poster: 190, backdrop: 120, clearlogo: 90 };
 const PANEL_BG     = { clearlogo: '#111' };
 
-export default function ArtworkPanel({ type, label, options, loading, selected, onSelect }) {
+export default function ArtworkPanel({ type, label, options, loading, selected, onSelect, currentUrl }) {
   const height  = THUMB_HEIGHT[type] ?? 120;
   const panelBg = PANEL_BG[type] ?? 'transparent';
 
@@ -19,24 +19,42 @@ export default function ArtworkPanel({ type, label, options, loading, selected, 
         {selected && <span style={s.badge}>✓ Selected</span>}
       </div>
 
-      <div style={{ ...s.strip, height: height + 20 }}>
+      <div style={s.strip}>
         {loading ? (
           <Skeletons count={5} height={height} />
-        ) : options.length === 0 ? (
-          <span style={s.empty}>No artwork found — file will be left unchanged</span>
         ) : (
-          options.map((img, i) => (
-            <Thumb
-              key={i}
-              img={img}
-              height={height}
-              bg={panelBg}
-              isSelected={selected === img.downloadUrl}
-              onClick={() => onSelect(img.downloadUrl)}
-            />
-          ))
+          <>
+            {currentUrl && <CurrentThumb url={currentUrl} height={height} bg={panelBg} />}
+            {options.length === 0 ? (
+              <span style={s.empty}>No artwork found — file will be left unchanged</span>
+            ) : (
+              options.map((img, i) => (
+                <Thumb
+                  key={i}
+                  img={img}
+                  height={height}
+                  bg={panelBg}
+                  isSelected={selected === img.downloadUrl}
+                  onClick={() => onSelect(img.downloadUrl)}
+                />
+              ))
+            )}
+          </>
         )}
       </div>
+    </div>
+  );
+}
+
+function CurrentThumb({ url, height, bg }) {
+  const ratio = 2 / 3; // season posters are portrait; use poster ratio as default
+  const width = Math.round(height * ratio);
+  return (
+    <div style={{ ...s.thumbWrap, width }}>
+      <div style={{ ...s.thumb, width, height, background: bg || '#0a0a18', outline: '2px solid #4caf7d' }}>
+        <img src={url} alt="current" style={s.img} />
+      </div>
+      <div style={s.currentLabel}>On disk</div>
     </div>
   );
 }
@@ -46,33 +64,37 @@ function Thumb({ img, height, bg, isSelected, onClick }) {
   const width = Math.round(height * ratio);
 
   return (
-    <div
-      onClick={onClick}
-      style={{
-        ...s.thumb,
-        width, height,
-        background: bg || '#0a0a18',
-        outline: isSelected ? '3px solid #3b82f6' : '2px solid transparent',
-      }}
-    >
-      <img
-        src={proxyUrl(img.thumbUrl)}
-        alt=""
-        style={s.img}
-        loading="lazy"
-        onError={e => { e.currentTarget.style.opacity = '0.2'; }}
-      />
+    <div onClick={onClick} style={{ ...s.thumbWrap, width }}>
+      <div
+        style={{
+          ...s.thumb,
+          width, height,
+          background: bg || '#0a0a18',
+          outline: isSelected ? '3px solid #3b82f6' : '2px solid transparent',
+        }}
+      >
+        <img
+          src={proxyUrl(img.thumbUrl)}
+          alt=""
+          style={s.img}
+          loading="lazy"
+          onError={e => { e.currentTarget.style.opacity = '0.2'; }}
+        />
+        {isSelected && <div style={s.check}>✓</div>}
+      </div>
       {img.width && img.height && (
         <div style={s.dims}>{img.width}×{img.height}</div>
       )}
-      {isSelected && <div style={s.check}>✓</div>}
     </div>
   );
 }
 
 function Skeletons({ count, height }) {
   return Array.from({ length: count }, (_, i) => (
-    <div key={i} style={{ ...s.skeleton, height, width: Math.round(height * 0.67) }} />
+    <div key={i} style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, width: Math.round(height * 0.67) }}>
+      <div style={{ ...s.skeleton, height, width: '100%' }} />
+      <div style={{ ...s.skeleton, height: 10, width: '60%', borderRadius: 3 }} />
+    </div>
   ));
 }
 
@@ -85,15 +107,12 @@ const s = {
   label:  { fontWeight: 700, fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#8080a0' },
   count:  { fontSize: 12, color: '#444' },
   badge:  { marginLeft: 'auto', background: '#0f2e1a', color: '#4caf7d', borderRadius: 4, padding: '2px 8px', fontSize: 12, fontWeight: 600 },
-  strip:  { display: 'flex', gap: 8, overflowX: 'auto', overflowY: 'hidden', paddingBottom: 4, alignItems: 'center' },
-  thumb:  { flexShrink: 0, borderRadius: 6, overflow: 'hidden', cursor: 'pointer', position: 'relative', transition: 'outline 0.1s' },
-  img:    { width: '100%', height: '100%', objectFit: 'cover' },
-  dims:   {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-    background: 'rgba(0,0,0,0.65)', color: '#ccc',
-    fontSize: 10, fontWeight: 600, padding: '3px 5px',
-    textAlign: 'center', letterSpacing: '0.03em',
-  },
+  strip:  { display: 'flex', gap: 8, overflowX: 'auto', overflowY: 'visible', paddingBottom: 4, alignItems: 'flex-start' },
+  thumbWrap:    { flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, cursor: 'pointer' },
+  thumb:        { borderRadius: 6, overflow: 'hidden', position: 'relative', transition: 'outline 0.1s', flexShrink: 0 },
+  img:          { width: '100%', height: '100%', objectFit: 'cover' },
+  dims:         { fontSize: 10, fontWeight: 600, color: '#555', letterSpacing: '0.03em', whiteSpace: 'nowrap' },
+  currentLabel: { fontSize: 10, fontWeight: 600, color: '#4caf7d', letterSpacing: '0.03em', whiteSpace: 'nowrap' },
   check:  {
     position: 'absolute', top: 4, right: 5,
     background: '#3b82f6', color: '#fff',

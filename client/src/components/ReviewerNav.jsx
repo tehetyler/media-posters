@@ -1,4 +1,4 @@
-export default function ReviewerNav({ stats, scanning, onScan, onBack, backLabel, crumbs = [] }) {
+export default function ReviewerNav({ stats, scanning, onScan, onBack, backLabel, crumbs = [], appName = 'Movie Artwork Reviewer' }) {
   return (
     <header style={s.bar}>
       <div style={s.topRow}>
@@ -6,7 +6,7 @@ export default function ReviewerNav({ stats, scanning, onScan, onBack, backLabel
           {onBack && (
             <button onClick={onBack} style={s.backBtn}>← {backLabel ?? 'Home'}</button>
           )}
-          <span className="nav-appname" style={s.appName}>Movie Artwork Reviewer</span>
+          <span className="nav-appname" style={s.appName}>{appName}</span>
         </div>
         <button onClick={onScan} disabled={scanning} style={s.scanBtn}>
           {scanning ? '↻ …' : '↻ Scan'}

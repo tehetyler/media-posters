@@ -1,7 +1,7 @@
 {
-  "name": "Movie Artwork Reviewer",
-  "short_name": "ArtReviewer",
-  "description": "Review and select poster, backdrop, and logo artwork for your movie library",
+  "name": "Media Artwork Manager",
+  "short_name": "Media Art Manager",
+  "description": "Manage poster, backdrop, and logo artwork for your movie and TV library",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

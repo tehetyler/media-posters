@@ -1,6 +1,6 @@
 import { readdirSync, statSync, readFileSync } from 'fs';
 import { join, dirname, extname } from 'path';
-import { upsertMovies, getStats } from './db.js';
+import { upsertMovies, getStats, removeStaleMovies } from './db.js';
 
 export function runScan() {
   const movieDir = process.env.MOVIE_DIR;
@@ -20,8 +20,9 @@ export function runScan() {
   }
 
   const result = upsertMovies(movies);
-  console.log(`[scan] Done — ${result.found} NFOs found, ${result.added} new movies added`);
-  return result;
+  const removed = removeStaleMovies(movies.map(m => m.folderPath));
+  console.log(`[scan] Done — ${result.found} NFOs found, ${result.added} added, ${removed} removed`);
+  return { ...result, removed };
 }
 
 // Recursively collect all .nfo files under a directory

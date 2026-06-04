@@ -7,6 +7,7 @@ import express from 'express';
 import cors from 'cors';
 import { initDb } from './db.js';
 import { runScan } from './scanner.js';
+import { runTvScan } from './tvscanner.js';
 import routes from './routes.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -35,7 +36,9 @@ const PORT = process.env.PORT || 3001;
 
 initDb();
 runScan();
+runTvScan().catch(err => console.warn('[tv-scan] Startup scan failed:', err.message));
 setInterval(() => runScan(), 30 * 60 * 1000);
+setInterval(() => runTvScan().catch(() => {}), 30 * 60 * 1000);
 
 app.listen(PORT, '0.0.0.0', () => {
   const nets = Object.values(networkInterfaces()).flat();

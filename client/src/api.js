@@ -21,3 +21,18 @@ export const fetchStatus            = ()  => req('GET',  '/api/status');
 export const markSkippedAsReviewed  = ()  => req('POST', '/api/options/mark-skipped-reviewed');
 
 export const proxyUrl = (url) => `/api/proxy?url=${encodeURIComponent(url)}`;
+
+// ── TV Shows ──────────────────────────────────────────────────────────────────
+export const fetchTvQueue          = ()              => req('GET',  '/api/tv/queue');
+export const fetchTvShows          = ()              => req('GET',  '/api/tv/shows');
+export const fetchTvStatus         = ()              => req('GET',  '/api/tv/status');
+export const fetchTvShowById       = (id)            => req('GET',  `/api/tv/${id}`);
+export const searchTvShowById      = (id)            => req('GET',  `/api/tv/${id}/search`);
+export const setTvShowTmdbId       = (id, tmdbId)   => req('POST', `/api/tv/${id}/set-tmdb`, { tmdbId });
+export const fetchTvArtwork        = (id)            => req('GET',  `/api/tv/${id}/artwork`);
+export const fetchTvSeasonArtwork  = (id, n)         => req('GET',  `/api/tv/${id}/season/${n}/artwork`);
+export const fetchTvCurrentArtwork = (id)            => req('GET',  `/api/tv/${id}/current-artwork`);
+export const saveTvSelections      = (id, selections) => req('POST', `/api/tv/${id}/select`, { selections });
+export const skipTvShow            = (id)            => req('POST', `/api/tv/${id}/skip`);
+export const scanTvNow             = ()              => req('POST', '/api/tv/scan');
+export const markTvSkippedAsReviewed = ()            => req('POST', '/api/tv/options/mark-skipped-reviewed');

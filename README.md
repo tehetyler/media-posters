@@ -1,17 +1,30 @@
-# Media Posters
+# Media Artwork Manager
 
-A locally-hosted web app for reviewing and selecting movie artwork. It scans your movie library for NFO files written by TinyMediaManager, fetches poster, backdrop, and clearlogo options from TMDB, and lets you select and download artwork directly into each movie's folder.
+A locally-hosted web app for reviewing and selecting artwork for your movie and TV show libraries. It scans your movie library for NFO files written by TinyMediaManager and your TV show directory for season folders, fetches poster, backdrop, clearlogo, and season poster options from TMDB, and lets you select and download artwork directly into each folder.
 
 ## Features
 
-- Scans movie directories recursively for `.nfo` files
+### Movies
+- Scans movie directories recursively for `.nfo` files written by TinyMediaManager
 - Fetches poster, backdrop, and clearlogo options from TMDB
-- Shows currently-on-disk artwork alongside TMDB options
-- Downloads selected images directly to the movie folder
-- Tracks review status per movie in a local SQLite database
-- Movie library browser with search, sort, and filter
-- PWA support — installable on mobile devices
+- Downloads selected artwork directly to each movie's folder
+- Tracks review status per movie in SQLite
+
+### TV Shows
+- Scans TV show directory for show folders and detects season subfolders automatically
+- Auto-matches shows to TMDB by title/year (configurable confidence threshold)
+- Fetches series poster, background, clearlogo, and per-season poster options from TMDB
+- "Fix Match" button to correct or change the TMDB match for any show
+- Season poster sections hidden for shows with no season subfolders
+- Resets shows to pending when new seasons are detected on rescan
+- Removes stale DB entries when shows/movies are deleted from disk
+
+### General
+- Currently-on-disk artwork shown alongside TMDB options for reference
+- Library browser with search, sort, and filter by status
+- PWA — installable on mobile devices
 - Accessible from other devices on the local network
+- Options page with force sync and mark-skipped-as-reviewed for both movies and TV
 
 ## Requirements
 
@@ -30,8 +43,10 @@ cd media-posters
 **2. Create `server/.env`**
 ```
 MOVIE_DIR=D:\path\to\your\movies
+TV_SHOW_DIR=D:\path\to\your\tv shows
 TMDB_API_KEY=your_tmdb_api_key_here
 PORT=3001
+TV_MATCH_MIN_POPULARITY=5
 ```
 
 **3. Run**
@@ -50,32 +65,44 @@ Open `http://localhost:5173` in your browser. From other devices on the same net
 
 ## Artwork file naming
 
-When you save a selection, files are written to the movie's folder as:
-
+### Movies
 | Type | Files written |
 |---|---|
 | Poster | `poster.jpg` |
 | Background | `backdrop.jpg` + `fanart.jpg` |
 | Clear Logo | `clearlogo.png` (or original extension) |
 
+### TV Shows (written to show root folder)
+| Type | Files written |
+|---|---|
+| Series Poster | `poster.jpg` |
+| Background | `fanart.jpg` + `backdrop.jpg` |
+| Clear Logo | `clearlogo.png` (or original extension) |
+| Season N Poster | `Season01.jpg` inside the season subfolder (e.g. `Show Season 01/Season01.jpg`) |
+
 ## Project structure
 
 ```
 media-posters/
 ├── server/
-│   ├── db.js          # SQLite database
-│   ├── scanner.js     # NFO file scanner
-│   ├── tmdb.js        # TMDB API client
-│   ├── downloader.js  # Downloads and writes artwork files
-│   ├── routes.js      # Express API routes
-│   └── index.js       # Server entry point
+│   ├── db.js            # SQLite database (movies + TV shows)
+│   ├── scanner.js       # NFO file scanner (movies)
+│   ├── tvscanner.js     # TV show directory scanner + TMDB auto-match
+│   ├── tmdb.js          # TMDB API client (movies + TV)
+│   ├── downloader.js    # Downloads and writes movie artwork
+│   ├── tvdownloader.js  # Downloads and writes TV artwork
+│   ├── routes.js        # Express API routes
+│   └── index.js         # Server entry point
 └── client/
     └── src/
         ├── App.jsx
         └── components/
             ├── HomePage.jsx
             ├── LibraryPage.jsx
+            ├── TvLibraryPage.jsx
             ├── ReviewScreen.jsx
+            ├── TvReviewScreen.jsx
+            ├── TvReviewerPage.jsx
             ├── ArtworkPanel.jsx
             ├── CurrentArtworkBanner.jsx
             ├── ReviewerNav.jsx
@@ -87,28 +114,20 @@ media-posters/
 
 ## Migration / Backup
 
-If you move this app to a new machine or need to restore it, two files are not in the repo and must be backed up manually:
+Two files are not in the repo and must be backed up manually:
 
 ### 1. `server/.env` ⚠️ Required
-Contains your TMDB API key and movie directory path. Without this the server will not connect to TMDB or find your movies.
-
-```
-server/.env
-```
+Contains your TMDB API key and directory paths.
 
 ### 2. `server/data.db` ⚠️ Required to preserve review history
-The SQLite database that tracks every movie, its folder path, and whether it has been reviewed or skipped. Losing this means the entire review queue resets — all movies will appear as pending again.
-
-```
-server/data.db
-```
+The SQLite database storing all movie and TV show records and their review status. Losing this resets all items to pending.
 
 ### Migration steps
 
-1. On the new machine, clone the repo and install dependencies as per Setup above.
+1. Clone the repo and install dependencies on the new machine.
 2. Copy `server/.env` from the old machine.
 3. Copy `server/data.db` from the old machine.
-4. Update `MOVIE_DIR` in `server/.env` if the movie path is different on the new machine.
+4. Update `MOVIE_DIR` and `TV_SHOW_DIR` in `server/.env` if paths differ.
 5. Run `start.bat`.
 
-> If your movie folder paths change (e.g. drive letter differs), the existing database records will still exist but the folder paths stored in the database will be stale. Run a fresh scan from the Options page to re-discover movies at their new paths. Note: existing review status is matched by folder path, so movies at new paths will appear as pending again. To avoid this, keep the same drive letter and folder structure on the new machine.
+> If folder paths change, existing DB records will have stale paths. Run a fresh scan from the Options page — items at new paths will appear as pending again.
