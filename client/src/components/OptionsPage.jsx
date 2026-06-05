@@ -16,7 +16,9 @@ export default function OptionsPage({ onBack }) {
     setSyncState('running'); setSyncResult(null);
     try {
       const r = await scanNow();
-      setSyncResult(`Found ${r.found} movies — ${r.added} new added to queue.`);
+      const parts = [`${r.found} found`, `${r.added} new`];
+      if (r.removed > 0) parts.push(`${r.removed} removed`);
+      setSyncResult(`Movies: ${parts.join(', ')}.`);
       setSyncState('done');
     } catch (err) { setSyncResult(err.message); setSyncState('error'); }
   }
@@ -34,7 +36,10 @@ export default function OptionsPage({ onBack }) {
     setTvSyncState('running'); setTvSyncResult(null);
     try {
       const r = await scanTvNow();
-      setTvSyncResult(`Found ${r.found} shows — ${r.added} new added to queue.`);
+      const parts = [`${r.found} found`, `${r.added} new`];
+      if (r.removed > 0) parts.push(`${r.removed} removed`);
+      if (r.reset   > 0) parts.push(`${r.reset} reset to pending (new seasons)`);
+      setTvSyncResult(`TV shows: ${parts.join(', ')}.`);
       setTvSyncState('done');
     } catch (err) { setTvSyncResult(err.message); setTvSyncState('error'); }
   }

@@ -175,6 +175,7 @@ export function upsertShows(shows) {
     'UPDATE shows SET reviewed = 0, skipped = 0, reviewed_at = NULL WHERE folder_path = ?'
   );
 
+  let reset = 0;
   d().exec('BEGIN');
   try {
     for (const s of shows) {
@@ -184,7 +185,7 @@ export function upsertShows(shows) {
       const prev = existingSeasons.get(s.folderPath);
       if (prev !== undefined) {
         const hasNewSeason = (s.seasons ?? []).some(n => !prev.includes(n));
-        if (hasNewSeason) resetStmt.run(s.folderPath);
+        if (hasNewSeason) { resetStmt.run(s.folderPath); reset++; }
       }
     }
     d().exec('COMMIT');
@@ -197,7 +198,7 @@ export function upsertShows(shows) {
   const added = after - before;
 
   d().prepare('INSERT INTO tv_scan_log (found, added) VALUES (?, ?)').run(shows.length, added);
-  return { found: shows.length, added };
+  return { found: shows.length, added, reset };
 }
 
 export function getUnmatchedShows() {
