@@ -54,6 +54,7 @@ export default function TvReviewerPage({ mode, specificId, onBack }) {
         ...seasons.map(n => fetchTvSeasonArtwork(s.id, n).catch(() => ({ posters: [] }))),
       ]);
       setSeriesArtwork(series);
+      if (series.tvdbId) setShow(prev => prev ? { ...prev, tvdb_id: series.tvdbId } : prev);
       setCurrentArtwork(current);
       const seasonMap = {};
       seasons.forEach((n, i) => { seasonMap[n] = seasonResults[i]; });

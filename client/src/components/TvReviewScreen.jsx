@@ -50,6 +50,7 @@ export default function TvReviewScreen({
           {show.tmdb_id ? (
             <>
               <span style={s.matchBadge}>TMDB {show.tmdb_id}</span>
+              {show.tvdb_id && <span style={s.tvdbBadge}>TVDB {show.tvdb_id}</span>}
               <button
                 onClick={onOpenSearch}
                 disabled={showMatchPanel}
@@ -138,17 +139,20 @@ export default function TvReviewScreen({
             </>
           )}
 
-          <div className="review-actions">
-            {anySelected && (
-              <span style={s.hint}>Only selected types will be written — others left unchanged</span>
-            )}
-            <button onClick={onSkip}     disabled={saving} style={s.skipBtn}>Skip</button>
-            <button onClick={handleSave} disabled={saving} style={s.saveBtn}>
-              {saving ? 'Saving…' : mode === 'specific' ? 'Save & Done' : 'Save & Next'}
-            </button>
-          </div>
         </>
       )}
+
+      <div className="review-actions">
+        {anySelected && (
+          <span style={s.hint}>Only selected types will be written — others left unchanged</span>
+        )}
+        <button onClick={onSkip} disabled={saving} style={s.skipBtn}>Skip</button>
+        {artworkReady && (
+          <button onClick={handleSave} disabled={saving} style={s.saveBtn}>
+            {saving ? 'Saving…' : mode === 'specific' ? 'Save & Done' : 'Save & Next'}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -218,6 +222,7 @@ const s = {
   year:        { fontSize: 18, color: '#555', fontWeight: 400 },
   matchRow:    { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
   matchBadge:  { fontSize: 12, background: '#0f2e1a', color: '#4caf7d', borderRadius: 4, padding: '3px 10px' },
+  tvdbBadge:   { fontSize: 12, background: '#0d2040', color: '#60a5fa', borderRadius: 4, padding: '3px 10px' },
   fixMatchBtn: { background: '#1e1e38', color: '#9090c0', fontSize: 12, padding: '4px 12px', border: '1px solid #2a2a50' },
   noMatch:     { fontSize: 13, color: '#e2a52a', background: '#3a2a0a', borderRadius: 4, padding: '5px 12px' },
   sectionLabel:{

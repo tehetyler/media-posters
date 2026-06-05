@@ -45,6 +45,8 @@ export function initDb() {
       added      INTEGER NOT NULL DEFAULT 0
     );
   `);
+  // Migration: add tvdb_id to shows (no-op if column already exists)
+  try { db.exec('ALTER TABLE shows ADD COLUMN tvdb_id TEXT'); } catch {}
 }
 
 function d() {
@@ -205,7 +207,7 @@ export function getUnmatchedShows() {
 export function getShows() {
   return d().prepare(`
     SELECT
-      id, tmdb_id, title, year, folder_path, seasons, reviewed, skipped, reviewed_at, added_at,
+      id, tmdb_id, tvdb_id, title, year, folder_path, seasons, reviewed, skipped, reviewed_at, added_at,
       CASE
         WHEN reviewed = 1 THEN 'reviewed'
         WHEN skipped  = 1 THEN 'skipped'
@@ -249,6 +251,10 @@ export function markShowSkippedAsReviewed() {
 
 export function setShowTmdbId(id, tmdbId) {
   d().prepare('UPDATE shows SET tmdb_id = ? WHERE id = ?').run(tmdbId, Number(id));
+}
+
+export function setShowTvdbId(id, tvdbId) {
+  d().prepare('UPDATE shows SET tvdb_id = ? WHERE id = ?').run(tvdbId, Number(id));
 }
 
 export function removeStaleMovies(currentFolderPaths) {

@@ -2,8 +2,9 @@ import { Router } from 'express';
 import axios from 'axios';
 import { existsSync, createReadStream, statSync } from 'fs';
 import { join, resolve, extname, sep } from 'path';
-import { getNextPending, getMovieById, getMovies, markReviewed, markSkipped, markSkippedAsReviewed, getStats, getShows, getShowById, getNextPendingShow, markShowReviewed, markShowSkipped, markShowSkippedAsReviewed, setShowTmdbId, getShowStats } from './db.js';
+import { getNextPending, getMovieById, getMovies, markReviewed, markSkipped, markSkippedAsReviewed, getStats, getShows, getShowById, getNextPendingShow, markShowReviewed, markShowSkipped, markShowSkippedAsReviewed, setShowTmdbId, setShowTvdbId, getShowStats } from './db.js';
 import { fetchArtwork, searchTvShow, fetchTvArtwork, fetchSeasonArtwork } from './tmdb.js';
+import { getTvdbId, fetchTvDbSeriesArtwork, fetchTvDbSeasonArtwork } from './tvdb.js';
 import { downloadSelections } from './downloader.js';
 import { downloadTvSelections, findSeasonFolder } from './tvdownloader.js';
 import { runScan } from './scanner.js';
@@ -144,6 +145,7 @@ router.get('/tv/shows', (req, res) => {
   res.json(getShows());
 });
 
+
 router.get('/tv/:id', (req, res) => {
   const show = getShowById(req.params.id);
   if (!show) return res.status(404).json({ error: 'Show not found' });
@@ -161,12 +163,18 @@ router.get('/tv/:id/search', async (req, res) => {
   }
 });
 
-router.post('/tv/:id/set-tmdb', (req, res) => {
+router.post('/tv/:id/set-tmdb', async (req, res) => {
   const show = getShowById(req.params.id);
   if (!show) return res.status(404).json({ error: 'Show not found' });
   const { tmdbId } = req.body;
   if (!tmdbId) return res.status(400).json({ error: 'tmdbId required' });
   setShowTmdbId(req.params.id, String(tmdbId));
+  if (process.env.TVDB_API_KEY) {
+    try {
+      const tvdbId = await getTvdbId(String(tmdbId));
+      if (tvdbId) setShowTvdbId(req.params.id, tvdbId);
+    } catch {}
+  }
   res.json(getShowById(req.params.id));
 });
 
@@ -175,8 +183,30 @@ router.get('/tv/:id/artwork', async (req, res) => {
   if (!show) return res.status(404).json({ error: 'Show not found' });
   if (!show.tmdb_id) return res.status(422).json({ error: 'No TMDB ID — cannot fetch artwork' });
   try {
-    const artwork = await fetchTvArtwork(show.tmdb_id);
-    res.json(artwork);
+    const tvdbEnabled = Boolean(process.env.TVDB_API_KEY);
+    let resolvedTvdbId = null;
+    const [tmdbResult, tvdbResult] = await Promise.allSettled([
+      fetchTvArtwork(show.tmdb_id),
+      tvdbEnabled
+        ? getTvdbId(show.tmdb_id).then(id => {
+            resolvedTvdbId = id;
+            if (id && !show.tvdb_id) setShowTvdbId(show.id, id);
+            return id ? fetchTvDbSeriesArtwork(id) : null;
+          })
+        : Promise.resolve(null),
+    ]);
+
+    if (tmdbResult.status === 'rejected') throw tmdbResult.reason;
+    const tmdb = tmdbResult.value;
+    const tvdb = tvdbResult.status === 'fulfilled' ? tvdbResult.value : null;
+    const byRes = (a, b) => (b.width * b.height) - (a.width * a.height);
+
+    res.json({
+      tvdbId:    resolvedTvdbId,
+      posters:   [...(tvdb?.posters   ?? []), ...tmdb.posters].sort(byRes),
+      backdrops: [...(tvdb?.backdrops ?? []), ...tmdb.backdrops].sort(byRes),
+      logos:     [...(tvdb?.logos     ?? []), ...tmdb.logos].sort(byRes),
+    });
   } catch (err) {
     res.status(502).json({ error: 'TMDB request failed', detail: err.message });
   }
@@ -187,8 +217,22 @@ router.get('/tv/:id/season/:n/artwork', async (req, res) => {
   if (!show) return res.status(404).json({ error: 'Show not found' });
   if (!show.tmdb_id) return res.status(422).json({ error: 'No TMDB ID — cannot fetch artwork' });
   try {
-    const artwork = await fetchSeasonArtwork(show.tmdb_id, req.params.n);
-    res.json(artwork);
+    const tvdbEnabled = Boolean(process.env.TVDB_API_KEY);
+    const [tmdbResult, tvdbResult] = await Promise.allSettled([
+      fetchSeasonArtwork(show.tmdb_id, req.params.n),
+      tvdbEnabled
+        ? getTvdbId(show.tmdb_id).then(id => id ? fetchTvDbSeasonArtwork(id, req.params.n) : null)
+        : Promise.resolve(null),
+    ]);
+
+    if (tmdbResult.status === 'rejected') throw tmdbResult.reason;
+    const tmdb = tmdbResult.value;
+    const tvdb = tvdbResult.status === 'fulfilled' ? tvdbResult.value : null;
+    const byRes = (a, b) => (b.width * b.height) - (a.width * a.height);
+
+    res.json({
+      posters: [...(tvdb?.posters ?? []), ...tmdb.posters].sort(byRes),
+    });
   } catch (err) {
     res.status(502).json({ error: 'TMDB request failed', detail: err.message });
   }

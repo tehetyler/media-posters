@@ -27,6 +27,7 @@ export async function runTvScan() {
     let stat;
     try { stat = statSync(fullPath); } catch { continue; }
     if (!stat.isDirectory()) continue;
+    if (entry === '.grab') continue;
 
     const { title, year } = parseFolderName(entry);
     const seasons = detectSeasons(fullPath);

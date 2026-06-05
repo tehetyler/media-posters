@@ -78,5 +78,6 @@ function normalizeImage(img, thumbSize) {
     height:       img.height,
     language:     img.iso_639_1 ?? null,
     voteAverage:  img.vote_average ?? 0,
+    source:       'tmdb',
   };
 }

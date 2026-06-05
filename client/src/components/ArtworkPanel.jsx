@@ -85,6 +85,9 @@ function Thumb({ img, height, bg, isSelected, onClick }) {
       {img.width && img.height && (
         <div style={s.dims}>{img.width}×{img.height}</div>
       )}
+      {img.source && (
+        <div style={img.source === 'tvdb' ? s.srcTvdb : s.srcTmdb}>{img.source.toUpperCase()}</div>
+      )}
     </div>
   );
 }
@@ -112,6 +115,8 @@ const s = {
   thumb:        { borderRadius: 6, overflow: 'hidden', position: 'relative', transition: 'outline 0.1s', flexShrink: 0 },
   img:          { width: '100%', height: '100%', objectFit: 'cover' },
   dims:         { fontSize: 10, fontWeight: 600, color: '#555', letterSpacing: '0.03em', whiteSpace: 'nowrap' },
+  srcTvdb:      { fontSize: 9, fontWeight: 700, color: '#60a5fa', letterSpacing: '0.06em', whiteSpace: 'nowrap' },
+  srcTmdb:      { fontSize: 9, fontWeight: 700, color: '#4a4a70', letterSpacing: '0.06em', whiteSpace: 'nowrap' },
   currentLabel: { fontSize: 10, fontWeight: 600, color: '#4caf7d', letterSpacing: '0.03em', whiteSpace: 'nowrap' },
   check:  {
     position: 'absolute', top: 4, right: 5,

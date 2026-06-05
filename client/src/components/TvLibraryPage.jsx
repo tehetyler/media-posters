@@ -111,6 +111,7 @@ function ShowRow({ show, onReview }) {
         {show.tmdb_id
           ? <span style={{ color: '#666' }}>TMDB {show.tmdb_id}</span>
           : <span style={{ color: '#444' }}>No ID</span>}
+        {show.tvdb_id && <span style={{ color: '#4a6a9a', marginLeft: 8 }}>TVDB {show.tvdb_id}</span>}
         {seasons.length > 0 && (
           <span style={{ color: '#444', marginLeft: 8 }}>{seasons.length} season{seasons.length !== 1 ? 's' : ''}</span>
         )}
