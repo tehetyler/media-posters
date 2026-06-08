@@ -26,6 +26,25 @@ export async function fetchArtwork(tmdbId) {
   };
 }
 
+export async function searchMovie(title, year) {
+  const params = {
+    api_key: apiKey(),
+    query: title,
+    include_adult: false,
+  };
+  if (year) params.primary_release_year = year;
+
+  const { data } = await axios.get(`${BASE}/search/movie`, { params, timeout: 15000 });
+  return (data.results ?? []).slice(0, 5).map(r => ({
+    tmdbId:      r.id,
+    name:        r.title,
+    year:        r.release_date ? parseInt(r.release_date.slice(0, 4)) : null,
+    overview:    r.overview ?? null,
+    posterPath:  r.poster_path ?? null,
+    popularity:  r.popularity ?? 0,
+  }));
+}
+
 export async function searchTvShow(title, year) {
   const params = {
     api_key: apiKey(),

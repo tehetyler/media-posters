@@ -1,5 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useCallback } from 'react';
-import { fetchQueue, fetchMovieById, fetchArtwork, fetchCurrentArtwork, saveSelections, skipMovie, scanNow } from './api';
+import { fetchQueue, fetchMovieById, fetchArtwork, fetchCurrentArtwork, saveSelections, skipMovie, scanNow, searchMovieById, setMovieTmdbId } from './api';
 import HomePage        from './components/HomePage';
 import LibraryPage     from './components/LibraryPage';
 import OptionsPage     from './components/OptionsPage';
@@ -80,12 +80,31 @@ function ReviewerPage({ mode, specificId, onBack }) {
   const [scanning,       setScanning]       = useState(false);
   const [error,          setError]          = useState(null);
   const [allDone,        setAllDone]        = useState(false);
+  const [searchResults,  setSearchResults]  = useState(null);
+  const [searchLoading,  setSearchLoading]  = useState(false);
 
   const loadArtworkFor = useCallback(async (m) => {
     if (!m) return;
     setArtwork(null);
     setCurrentArtwork({});
     setArtworkError(null);
+    setSearchResults(null);
+    setSearchLoading(false);
+
+    if (!m.tmdb_id) {
+      setSearchLoading(true);
+      fetchCurrentArtwork(m.id).then(setCurrentArtwork).catch(() => {});
+      try {
+        const results = await searchMovieById(m.id);
+        setSearchResults(results);
+      } catch {
+        setSearchResults([]);
+      } finally {
+        setSearchLoading(false);
+      }
+      return;
+    }
+
     setArtworkLoading(true);
     try {
       const [tmdb, current] = await Promise.all([
@@ -153,6 +172,35 @@ function ReviewerPage({ mode, specificId, onBack }) {
     }
   }
 
+  async function handleOpenSearch() {
+    setSearchLoading(true);
+    setSearchResults(null);
+    try {
+      const results = await searchMovieById(movie.id);
+      setSearchResults(results);
+    } catch {
+      setSearchResults([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  }
+
+  function handleCloseSearch() {
+    setSearchResults(null);
+    setSearchLoading(false);
+  }
+
+  async function handleFixMatch(tmdbId) {
+    setError(null);
+    try {
+      const updated = await setMovieTmdbId(movie.id, tmdbId);
+      setMovie(updated);
+      await loadArtworkFor(updated);
+    } catch (err) {
+      setError(`Failed to update match: ${err.message}`);
+    }
+  }
+
   async function handleScan() {
     setScanning(true);
     setError(null);
@@ -208,8 +256,13 @@ function ReviewerPage({ mode, specificId, onBack }) {
             currentArtwork={currentArtwork}
             artworkLoading={artworkLoading}
             artworkError={artworkError}
+            searchResults={searchResults}
+            searchLoading={searchLoading}
             onSave={handleSave}
             onSkip={handleSkip}
+            onFixMatch={handleFixMatch}
+            onOpenSearch={handleOpenSearch}
+            onCloseSearch={handleCloseSearch}
             mode={mode}
           />
         ) : null}

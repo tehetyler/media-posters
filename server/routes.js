@@ -2,8 +2,8 @@ import { Router } from 'express';
 import axios from 'axios';
 import { existsSync, createReadStream, statSync } from 'fs';
 import { join, resolve, extname, sep } from 'path';
-import { getNextPending, getMovieById, getMovies, markReviewed, markSkipped, markSkippedAsReviewed, getStats, getShows, getShowById, getNextPendingShow, markShowReviewed, markShowSkipped, markShowSkippedAsReviewed, setShowTmdbId, setShowTvdbId, getShowStats } from './db.js';
-import { fetchArtwork, searchTvShow, fetchTvArtwork, fetchSeasonArtwork } from './tmdb.js';
+import { getNextPending, getMovieById, getMovies, markReviewed, markSkipped, markSkippedAsReviewed, getStats, setMovieTmdbId, getShows, getShowById, getNextPendingShow, markShowReviewed, markShowSkipped, markShowSkippedAsReviewed, setShowTmdbId, setShowTvdbId, getShowStats } from './db.js';
+import { fetchArtwork, searchMovie, searchTvShow, fetchTvArtwork, fetchSeasonArtwork } from './tmdb.js';
 import { getTvdbId, fetchTvDbSeriesArtwork, fetchTvDbSeasonArtwork } from './tvdb.js';
 import { downloadSelections } from './downloader.js';
 import { downloadTvSelections, findSeasonFolder } from './tvdownloader.js';
@@ -107,6 +107,28 @@ router.post('/movie/:id/select', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: 'Failed to save artwork', detail: err.message });
   }
+});
+
+// Search TMDB for movie matches
+router.get('/movie/:id/search', async (req, res) => {
+  const movie = getMovieById(req.params.id);
+  if (!movie) return res.status(404).json({ error: 'Movie not found' });
+  try {
+    const results = await searchMovie(movie.title, movie.year);
+    res.json(results);
+  } catch (err) {
+    res.status(502).json({ error: 'TMDB search failed', detail: err.message });
+  }
+});
+
+// Set the TMDB match for a movie
+router.post('/movie/:id/set-tmdb', (req, res) => {
+  const movie = getMovieById(req.params.id);
+  if (!movie) return res.status(404).json({ error: 'Movie not found' });
+  const { tmdbId } = req.body;
+  if (!tmdbId) return res.status(400).json({ error: 'tmdbId required' });
+  setMovieTmdbId(req.params.id, String(tmdbId));
+  res.json(getMovieById(req.params.id));
 });
 
 // Skip a movie

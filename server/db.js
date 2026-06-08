@@ -250,6 +250,10 @@ export function markShowSkippedAsReviewed() {
   return result.changes;
 }
 
+export function setMovieTmdbId(id, tmdbId) {
+  d().prepare('UPDATE movies SET tmdb_id = ? WHERE id = ?').run(tmdbId, Number(id));
+}
+
 export function setShowTmdbId(id, tmdbId) {
   d().prepare('UPDATE shows SET tmdb_id = ? WHERE id = ?').run(tmdbId, Number(id));
 }
