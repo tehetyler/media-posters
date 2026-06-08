@@ -11,10 +11,17 @@ const STATUS_COLORS = {
 export default function TvLibraryPage({ onBack, onReview }) {
   const [shows,   setShows]   = useState([]);
   const [loading, setLoading] = useState(true);
-  const [search,  setSearch]  = useState('');
-  const [status,  setStatus]  = useState('all');
-  const [sortBy,  setSortBy]  = useState('title');
-  const [sortDir, setSortDir] = useState('asc');
+  const [search,  setSearch]  = useState(() => sessionStorage.getItem('tvlib.search')  ?? '');
+  const [status,  setStatus]  = useState(() => sessionStorage.getItem('tvlib.status')  ?? 'all');
+  const [sortBy,  setSortBy]  = useState(() => sessionStorage.getItem('tvlib.sortBy')  ?? 'title');
+  const [sortDir, setSortDir] = useState(() => sessionStorage.getItem('tvlib.sortDir') ?? 'asc');
+
+  useEffect(() => {
+    sessionStorage.setItem('tvlib.search',  search);
+    sessionStorage.setItem('tvlib.status',  status);
+    sessionStorage.setItem('tvlib.sortBy',  sortBy);
+    sessionStorage.setItem('tvlib.sortDir', sortDir);
+  }, [search, status, sortBy, sortDir]);
 
   useEffect(() => {
     fetchTvShows()

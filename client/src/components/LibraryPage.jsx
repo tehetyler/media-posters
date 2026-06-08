@@ -11,10 +11,17 @@ const STATUS_COLORS = {
 export default function LibraryPage({ onBack, onReview }) {
   const [movies,  setMovies]  = useState([]);
   const [loading, setLoading] = useState(true);
-  const [search,  setSearch]  = useState('');
-  const [status,  setStatus]  = useState('all');
-  const [sortBy,  setSortBy]  = useState('title');
-  const [sortDir, setSortDir] = useState('asc');
+  const [search,  setSearch]  = useState(() => sessionStorage.getItem('lib.search')  ?? '');
+  const [status,  setStatus]  = useState(() => sessionStorage.getItem('lib.status')  ?? 'all');
+  const [sortBy,  setSortBy]  = useState(() => sessionStorage.getItem('lib.sortBy')  ?? 'title');
+  const [sortDir, setSortDir] = useState(() => sessionStorage.getItem('lib.sortDir') ?? 'asc');
+
+  useEffect(() => {
+    sessionStorage.setItem('lib.search',  search);
+    sessionStorage.setItem('lib.status',  status);
+    sessionStorage.setItem('lib.sortBy',  sortBy);
+    sessionStorage.setItem('lib.sortDir', sortDir);
+  }, [search, status, sortBy, sortDir]);
 
   useEffect(() => {
     fetchMovies()

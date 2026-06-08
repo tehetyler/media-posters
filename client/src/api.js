@@ -21,6 +21,7 @@ export const skipMovie           = (id)              => req('POST', `/api/movie/
 export const scanNow         = ()                   => req('POST', '/api/scan');
 export const fetchStatus            = ()  => req('GET',  '/api/status');
 export const markSkippedAsReviewed  = ()  => req('POST', '/api/options/mark-skipped-reviewed');
+export const sync4kArtwork          = ()  => req('POST', '/api/options/sync-4k-artwork');
 
 export const proxyUrl = (url) => `/api/proxy?url=${encodeURIComponent(url)}`;
 

@@ -262,6 +262,13 @@ export function setShowTvdbId(id, tvdbId) {
   d().prepare('UPDATE shows SET tvdb_id = ? WHERE id = ?').run(tvdbId, Number(id));
 }
 
+export function getProcessedMovieFolders() {
+  return new Set(
+    d().prepare('SELECT folder_path FROM movies WHERE reviewed = 1 OR skipped = 1').all()
+      .map(r => r.folder_path)
+  );
+}
+
 export function removeStaleMovies(currentFolderPaths) {
   const currentSet = new Set(currentFolderPaths);
   const existing = d().prepare('SELECT id, folder_path FROM movies').all();

@@ -25,9 +25,17 @@ export default function App() {
     setSpecificId(s?.specificId ?? null);
   }, []);
 
-  // On mount: stamp the current entry as home, listen for browser back/forward
+  // On mount: restore view from existing history state or derive from current URL
   useEffect(() => {
-    history.replaceState({ view: 'home' }, '', '/');
+    if (history.state?.view) {
+      applyState(history.state);
+    } else {
+      const pathToView = Object.fromEntries(Object.entries(VIEW_URLS).map(([k, v]) => [v, k]));
+      const view = pathToView[location.pathname] ?? 'home';
+      const state = { view, reviewMode: 'queue', specificId: null };
+      history.replaceState(state, '', location.pathname);
+      applyState(state);
+    }
     const handler = (e) => applyState(e.state);
     window.addEventListener('popstate', handler);
     return () => window.removeEventListener('popstate', handler);

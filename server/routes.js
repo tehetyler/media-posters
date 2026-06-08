@@ -9,6 +9,7 @@ import { downloadSelections } from './downloader.js';
 import { downloadTvSelections, findSeasonFolder } from './tvdownloader.js';
 import { runScan } from './scanner.js';
 import { runTvScan } from './tvscanner.js';
+import { sync4kArtwork } from './sync4k.js';
 
 const MIME = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.svg': 'image/svg+xml', '.webp': 'image/webp' };
 
@@ -148,6 +149,16 @@ router.post('/scan', (req, res) => {
 });
 
 router.get('/status', (req, res) => res.json(getStats()));
+
+// Copy artwork from regular movie folders to matching 4K folders
+router.post('/options/sync-4k-artwork', (req, res) => {
+  try {
+    const result = sync4kArtwork();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: 'Sync failed', detail: err.message });
+  }
+});
 
 // Mark all skipped movies as reviewed
 router.post('/options/mark-skipped-reviewed', (req, res) => {
