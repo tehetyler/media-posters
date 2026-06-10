@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import NavBar from './NavBar';
-import { scanNow, markSkippedAsReviewed, scanTvNow, markTvSkippedAsReviewed, sync4kArtwork } from '../api';
+import { scanNow, markSkippedAsReviewed, markSkippedAsPending, scanTvNow, markTvSkippedAsReviewed, markTvSkippedAsPending, sync4kArtwork } from '../api';
 
 export default function OptionsPage({ onBack }) {
   const [syncState,     setSyncState]     = useState('idle');
@@ -31,6 +31,15 @@ export default function OptionsPage({ onBack }) {
     try {
       const r = await markSkippedAsReviewed();
       setMarkResult(`${r.updated} skipped movie${r.updated !== 1 ? 's' : ''} marked as reviewed.`);
+      setMarkState('done');
+    } catch (err) { setMarkResult(err.message); setMarkState('error'); }
+  }
+
+  async function handleMarkSkippedPending() {
+    setMarkState('running'); setMarkResult(null);
+    try {
+      const r = await markSkippedAsPending();
+      setMarkResult(`${r.updated} skipped movie${r.updated !== 1 ? 's' : ''} restored to queue.`);
       setMarkState('done');
     } catch (err) { setMarkResult(err.message); setMarkState('error'); }
   }
@@ -69,6 +78,15 @@ export default function OptionsPage({ onBack }) {
     } catch (err) { setTvMarkResult(err.message); setTvMarkState('error'); }
   }
 
+  async function handleTvMarkSkippedPending() {
+    setTvMarkState('running'); setTvMarkResult(null);
+    try {
+      const r = await markTvSkippedAsPending();
+      setTvMarkResult(`${r.updated} skipped show${r.updated !== 1 ? 's' : ''} restored to queue.`);
+      setTvMarkState('done');
+    } catch (err) { setTvMarkResult(err.message); setTvMarkState('error'); }
+  }
+
   return (
     <div style={s.page}>
       <NavBar title="Options" onBack={onBack} backLabel="Home" crumbs={['Home', 'Options']} />
@@ -95,11 +113,13 @@ export default function OptionsPage({ onBack }) {
         />
         <OptionCard
           title="Mark Skipped as Reviewed"
-          desc="Moves all movies currently marked as skipped into the reviewed state, removing them from the pending queue."
-          action="Apply"
+          desc="Moves all skipped movies into the reviewed state, or restores them to the pending queue."
+          action="Mark as Reviewed"
+          secondAction="Restore to Queue"
           state={markState}
           result={markResult}
           onAction={handleMarkSkipped}
+          onSecondAction={handleMarkSkippedPending}
           danger
         />
 
@@ -115,11 +135,13 @@ export default function OptionsPage({ onBack }) {
         />
         <OptionCard
           title="Mark Skipped as Reviewed"
-          desc="Moves all TV shows currently marked as skipped into the reviewed state, removing them from the pending queue."
-          action="Apply"
+          desc="Moves all skipped TV shows into the reviewed state, or restores them to the pending queue."
+          action="Mark as Reviewed"
+          secondAction="Restore to Queue"
           state={tvMarkState}
           result={tvMarkResult}
           onAction={handleTvMarkSkipped}
+          onSecondAction={handleTvMarkSkippedPending}
           danger
         />
       </div>
@@ -131,7 +153,7 @@ function SectionLabel({ children }) {
   return <div style={s.sectionLabel}>{children}</div>;
 }
 
-function OptionCard({ title, desc, action, state, result, detail, onAction, danger }) {
+function OptionCard({ title, desc, action, secondAction, state, result, detail, onAction, onSecondAction, danger }) {
   const [showDetail, setShowDetail] = useState(false);
   const running = state === 'running';
   const btnColor = danger ? '#7c2d12' : '#1e3a5f';
@@ -151,6 +173,15 @@ function OptionCard({ title, desc, action, state, result, detail, onAction, dang
         >
           {running ? 'Working…' : action}
         </button>
+        {secondAction && (
+          <button
+            onClick={onSecondAction}
+            disabled={running}
+            style={{ ...s.actionBtn, background: '#1e3a5f', color: '#93c5fd' }}
+          >
+            {running ? 'Working…' : secondAction}
+          </button>
+        )}
         {result && (
           <span style={{ ...s.result, color: state === 'error' ? '#f87171' : '#4caf7d' }}>
             {result}

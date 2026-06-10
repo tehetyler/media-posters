@@ -116,6 +116,14 @@ export function markSkippedAsReviewed() {
   return result.changes;
 }
 
+export function markSkippedAsPending() {
+  const result = d().prepare(`
+    UPDATE movies SET skipped = 0, reviewed = 0, reviewed_at = NULL
+    WHERE skipped = 1
+  `).run();
+  return result.changes;
+}
+
 export function getMovies() {
   return d().prepare(`
     SELECT
@@ -245,6 +253,14 @@ export function markShowSkipped(id) {
 export function markShowSkippedAsReviewed() {
   const result = d().prepare(`
     UPDATE shows SET skipped = 0, reviewed = 1, reviewed_at = CURRENT_TIMESTAMP
+    WHERE skipped = 1
+  `).run();
+  return result.changes;
+}
+
+export function markShowSkippedAsPending() {
+  const result = d().prepare(`
+    UPDATE shows SET skipped = 0, reviewed = 0, reviewed_at = NULL
     WHERE skipped = 1
   `).run();
   return result.changes;

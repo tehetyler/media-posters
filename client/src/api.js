@@ -21,6 +21,7 @@ export const skipMovie           = (id)              => req('POST', `/api/movie/
 export const scanNow         = ()                   => req('POST', '/api/scan');
 export const fetchStatus            = ()  => req('GET',  '/api/status');
 export const markSkippedAsReviewed  = ()  => req('POST', '/api/options/mark-skipped-reviewed');
+export const markSkippedAsPending   = ()  => req('POST', '/api/options/mark-skipped-pending');
 export const sync4kArtwork          = ()  => req('POST', '/api/options/sync-4k-artwork');
 
 export const proxyUrl = (url) => `/api/proxy?url=${encodeURIComponent(url)}`;
@@ -39,3 +40,4 @@ export const saveTvSelections      = (id, selections) => req('POST', `/api/tv/${
 export const skipTvShow            = (id)            => req('POST', `/api/tv/${id}/skip`);
 export const scanTvNow             = ()              => req('POST', '/api/tv/scan');
 export const markTvSkippedAsReviewed = ()            => req('POST', '/api/tv/options/mark-skipped-reviewed');
+export const markTvSkippedAsPending  = ()            => req('POST', '/api/tv/options/mark-skipped-pending');

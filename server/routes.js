@@ -2,7 +2,7 @@ import { Router } from 'express';
 import axios from 'axios';
 import { existsSync, createReadStream, statSync } from 'fs';
 import { join, resolve, extname, sep } from 'path';
-import { getNextPending, getMovieById, getMovies, markReviewed, markSkipped, markSkippedAsReviewed, getStats, setMovieTmdbId, getShows, getShowById, getNextPendingShow, markShowReviewed, markShowSkipped, markShowSkippedAsReviewed, setShowTmdbId, setShowTvdbId, getShowStats } from './db.js';
+import { getNextPending, getMovieById, getMovies, markReviewed, markSkipped, markSkippedAsReviewed, markSkippedAsPending, getStats, setMovieTmdbId, getShows, getShowById, getNextPendingShow, markShowReviewed, markShowSkipped, markShowSkippedAsReviewed, markShowSkippedAsPending, setShowTmdbId, setShowTvdbId, getShowStats } from './db.js';
 import { fetchArtwork, searchMovie, searchTvShow, fetchTvArtwork, fetchSeasonArtwork } from './tmdb.js';
 import { getTvdbId, fetchTvDbSeriesArtwork, fetchTvDbSeasonArtwork } from './tvdb.js';
 import { downloadSelections } from './downloader.js';
@@ -163,6 +163,12 @@ router.post('/options/sync-4k-artwork', (req, res) => {
 // Mark all skipped movies as reviewed
 router.post('/options/mark-skipped-reviewed', (req, res) => {
   const updated = markSkippedAsReviewed();
+  res.json({ updated, stats: getStats() });
+});
+
+// Restore all skipped movies to pending queue
+router.post('/options/mark-skipped-pending', (req, res) => {
+  const updated = markSkippedAsPending();
   res.json({ updated, stats: getStats() });
 });
 
@@ -334,6 +340,11 @@ router.post('/tv/scan', async (req, res) => {
 
 router.post('/tv/options/mark-skipped-reviewed', (req, res) => {
   const updated = markShowSkippedAsReviewed();
+  res.json({ updated, stats: getShowStats() });
+});
+
+router.post('/tv/options/mark-skipped-pending', (req, res) => {
+  const updated = markShowSkippedAsPending();
   res.json({ updated, stats: getShowStats() });
 });
 
