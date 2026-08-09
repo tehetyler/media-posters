@@ -1,42 +1,49 @@
 import { readdirSync, statSync } from 'fs';
 import { join } from 'path';
-import { upsertShows, getUnmatchedShows, setShowTmdbId, removeStaleShows } from './db.js';
+import { upsertShows, getUnmatchedShows, setShowTmdbId, removeStaleShows, getLibraries } from './db.js';
 import { searchTvShow } from './tmdb.js';
 
 export async function runTvScan() {
-  const tvDir = process.env.TV_SHOW_DIR;
-  if (!tvDir) {
-    console.warn('[tv-scan] TV_SHOW_DIR not set — skipping');
-    return { found: 0, added: 0 };
+  const libraries = getLibraries({ kind: 'tv', enabledOnly: true });
+  if (libraries.length === 0) {
+    console.warn('[tv-scan] No TV libraries configured — skipping');
+    return { found: 0, added: 0, removed: 0, reset: 0, failed: [] };
   }
 
   const minPop = parseFloat(process.env.TV_MATCH_MIN_POPULARITY ?? '5');
-  console.log(`[tv-scan] Scanning ${tvDir}…`);
-
-  let entries;
-  try {
-    entries = readdirSync(tvDir);
-  } catch {
-    console.warn('[tv-scan] Cannot read TV_SHOW_DIR');
-    return { found: 0, added: 0 };
-  }
-
   const shows = [];
-  for (const entry of entries) {
-    const fullPath = join(tvDir, entry);
-    let stat;
-    try { stat = statSync(fullPath); } catch { continue; }
-    if (!stat.isDirectory()) continue;
-    if (entry === '.grab') continue;
+  const scannedLibraryIds = [];
+  const failed = [];
 
-    const { title, year } = parseFolderName(entry);
-    const seasons = detectSeasons(fullPath);
-    console.log(`[tv-scan] Found: "${title}" — seasons: [${seasons.join(', ') || 'none'}]`);
-    shows.push({ title, year, folderPath: fullPath, seasons });
+  for (const lib of libraries) {
+    let entries;
+    // Skip unreadable libraries so an offline drive never looks like an empty one
+    try {
+      entries = readdirSync(lib.path);
+    } catch {
+      console.warn(`[tv-scan] Cannot read "${lib.name}" (${lib.path}) — skipping, nothing removed`);
+      failed.push({ id: lib.id, name: lib.name, path: lib.path });
+      continue;
+    }
+
+    console.log(`[tv-scan] Scanning ${lib.name} — ${lib.path}…`);
+    for (const entry of entries) {
+      const fullPath = join(lib.path, entry);
+      let stat;
+      try { stat = statSync(fullPath); } catch { continue; }
+      if (!stat.isDirectory()) continue;
+      if (entry === '.grab') continue;
+
+      const { title, year } = parseFolderName(entry);
+      const seasons = detectSeasons(fullPath);
+      console.log(`[tv-scan] Found: "${title}" — seasons: [${seasons.join(', ') || 'none'}]`);
+      shows.push({ title, year, folderPath: fullPath, seasons, libraryId: lib.id });
+    }
+    scannedLibraryIds.push(lib.id);
   }
 
   const result = upsertShows(shows);
-  const removed = removeStaleShows(shows.map(s => s.folderPath));
+  const removed = removeStaleShows(shows.map(s => s.folderPath), scannedLibraryIds);
 
   // Auto-match TMDB for any shows still missing an ID
   const unmatched = getUnmatchedShows();
@@ -53,7 +60,7 @@ export async function runTvScan() {
   }
 
   console.log(`[tv-scan] Done — ${result.found} shows found, ${result.added} added, ${removed} removed`);
-  return { ...result, removed };
+  return { ...result, removed, failed };
 }
 
 function parseFolderName(name) {

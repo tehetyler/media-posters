@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { fetchMovies } from '../api';
+import { fetchMovies, fetchLibraries } from '../api';
 import NavBar from './NavBar';
 
 const STATUS_COLORS = {
@@ -9,24 +9,30 @@ const STATUS_COLORS = {
 };
 
 export default function LibraryPage({ onBack, onReview }) {
-  const [movies,  setMovies]  = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [movies,    setMovies]    = useState([]);
+  const [libraries, setLibraries] = useState([]);
+  const [loading,   setLoading]   = useState(true);
   const [search,  setSearch]  = useState(() => sessionStorage.getItem('lib.search')  ?? '');
   const [status,  setStatus]  = useState(() => sessionStorage.getItem('lib.status')  ?? 'all');
+  const [library, setLibrary] = useState(() => sessionStorage.getItem('lib.library') ?? 'all');
   const [sortBy,  setSortBy]  = useState(() => sessionStorage.getItem('lib.sortBy')  ?? 'title');
   const [sortDir, setSortDir] = useState(() => sessionStorage.getItem('lib.sortDir') ?? 'asc');
 
   useEffect(() => {
     sessionStorage.setItem('lib.search',  search);
     sessionStorage.setItem('lib.status',  status);
+    sessionStorage.setItem('lib.library', library);
     sessionStorage.setItem('lib.sortBy',  sortBy);
     sessionStorage.setItem('lib.sortDir', sortDir);
-  }, [search, status, sortBy, sortDir]);
+  }, [search, status, library, sortBy, sortDir]);
 
   useEffect(() => {
     fetchMovies()
       .then(setMovies)
       .finally(() => setLoading(false));
+    fetchLibraries()
+      .then(d => setLibraries(d.libraries.filter(l => l.enabled && l.kind === 'movie')))
+      .catch(() => {});
   }, []);
 
   const filtered = useMemo(() => {
@@ -36,6 +42,7 @@ export default function LibraryPage({ onBack, onReview }) {
       list = list.filter(m => m.title.toLowerCase().includes(q));
     }
     if (status !== 'all') list = list.filter(m => m.status === status);
+    if (library !== 'all') list = list.filter(m => String(m.library_id) === library);
 
     return [...list].sort((a, b) => {
       let cmp = 0;
@@ -44,7 +51,7 @@ export default function LibraryPage({ onBack, onReview }) {
       else if (sortBy === 'status') cmp = a.status.localeCompare(b.status);
       return sortDir === 'asc' ? cmp : -cmp;
     });
-  }, [movies, search, status, sortBy, sortDir]);
+  }, [movies, search, status, library, sortBy, sortDir]);
 
   return (
     <div style={s.page}>
@@ -70,6 +77,14 @@ export default function LibraryPage({ onBack, onReview }) {
             <option value="reviewed">Reviewed</option>
             <option value="skipped">Skipped</option>
           </select>
+          {libraries.length > 1 && (
+            <select style={s.select} value={library} onChange={e => setLibrary(e.target.value)}>
+              <option value="all">All libraries</option>
+              {libraries.map(l => (
+                <option key={l.id} value={String(l.id)}>{l.name}</option>
+              ))}
+            </select>
+          )}
           <select style={s.select} value={sortBy} onChange={e => setSortBy(e.target.value)}>
             <option value="title">Sort: Title</option>
             <option value="year">Sort: Year</option>
@@ -91,7 +106,12 @@ export default function LibraryPage({ onBack, onReview }) {
         ) : (
           <div className="library-grid">
             {filtered.map(movie => (
-              <MovieRow key={movie.id} movie={movie} onReview={() => onReview(movie.id)} />
+              <MovieRow
+                key={movie.id}
+                movie={movie}
+                showLibrary={libraries.length > 1}
+                onReview={() => onReview(movie.id)}
+              />
             ))}
           </div>
         )}
@@ -100,7 +120,7 @@ export default function LibraryPage({ onBack, onReview }) {
   );
 }
 
-function MovieRow({ movie, onReview }) {
+function MovieRow({ movie, showLibrary, onReview }) {
   const sc = STATUS_COLORS[movie.status] ?? STATUS_COLORS.pending;
   return (
     <div className="movie-row">
@@ -109,6 +129,9 @@ function MovieRow({ movie, onReview }) {
         <div style={s.rowTitle}>
           <span style={s.movieTitle}>{movie.title}</span>
           {movie.year && <span style={s.movieYear}>{movie.year}</span>}
+          {showLibrary && movie.library_name && (
+            <span style={s.libraryChip}>{movie.library_name}</span>
+          )}
         </div>
         <span style={{ ...s.statusBadge, background: sc.bg, color: sc.text }}>
           {movie.status}
@@ -147,6 +170,7 @@ const s = {
   rowTitle:    { display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 },
   movieTitle:  { fontWeight: 600, fontSize: 14, color: '#e0e0ff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   movieYear:   { fontSize: 13, color: '#555', flexShrink: 0 },
+  libraryChip: { fontSize: 11, color: '#7a7ab0', background: '#1e1e38', borderRadius: 4, padding: '2px 7px', flexShrink: 0, whiteSpace: 'nowrap' },
   statusBadge: { fontSize: 11, fontWeight: 600, borderRadius: 4, padding: '3px 8px', textTransform: 'capitalize', whiteSpace: 'nowrap' },
   tmdbId:      { fontSize: 12, color: '#666', whiteSpace: 'nowrap' },
   reviewBtn:   { background: '#1e2e4a', color: '#6ea8fe', padding: '6px 14px', fontSize: 13, flexShrink: 0 },

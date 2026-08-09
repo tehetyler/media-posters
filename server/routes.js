@@ -1,8 +1,9 @@
 import { Router } from 'express';
 import axios from 'axios';
 import { existsSync, createReadStream, statSync } from 'fs';
-import { join, resolve, extname, sep } from 'path';
-import { getNextPending, getMovieById, getMovies, markReviewed, markSkipped, markSkippedAsReviewed, markSkippedAsPending, getStats, setMovieTmdbId, getShows, getShowById, getNextPendingShow, markShowReviewed, markShowSkipped, markShowSkippedAsReviewed, markShowSkippedAsPending, setShowTmdbId, setShowTvdbId, getShowStats } from './db.js';
+import { join, resolve, extname } from 'path';
+import { getNextPending, getMovieById, getMovies, markReviewed, markSkipped, markSkippedAsReviewed, markSkippedAsPending, getStats, setMovieTmdbId, getShows, getShowById, getNextPendingShow, markShowReviewed, markShowSkipped, markShowSkippedAsReviewed, markShowSkippedAsPending, setShowTmdbId, setShowTvdbId, getShowStats, getLibraries, getLibraryById, findLibraryByPath, insertLibrary, updateLibrary, getLibraryItemCounts, getUntaggedCounts } from './db.js';
+import { normalizeDir, isUnder, pathsConflict } from './paths.js';
 import { fetchArtwork, searchMovie, searchTvShow, fetchTvArtwork, fetchSeasonArtwork } from './tmdb.js';
 import { getTvdbId, fetchTvDbSeriesArtwork, fetchTvDbSeasonArtwork } from './tvdb.js';
 import { downloadSelections } from './downloader.js';
@@ -59,18 +60,17 @@ router.get('/movie/:id/current-artwork', (req, res) => {
   });
 });
 
-// Serve a local image file (restricted to MOVIE_DIR)
+// Serve a local image file (restricted to configured library directories)
 router.get('/file', (req, res) => {
   const filePath = req.query.path;
   if (!filePath) return res.status(400).send('Missing path');
 
   const resolved = resolve(filePath);
-  const allowedDirs = [
-    process.env.MOVIE_DIR,
-    process.env.TV_SHOW_DIR,
-  ].filter(Boolean).map(d => resolve(d));
+  const allowedDirs = getLibraries()
+    .flatMap(l => [l.path, l.path_4k])
+    .filter(Boolean);
 
-  const isAllowed = allowedDirs.some(dir => resolved.startsWith(dir + sep) || resolved === dir);
+  const isAllowed = allowedDirs.some(dir => isUnder(resolved, dir));
   if (!isAllowed) return res.status(403).send('Forbidden');
   if (!existsSync(resolved))          return res.status(404).send('Not found');
 
@@ -170,6 +170,104 @@ router.post('/options/mark-skipped-reviewed', (req, res) => {
 router.post('/options/mark-skipped-pending', (req, res) => {
   const updated = markSkippedAsPending();
   res.json({ updated, stats: getStats() });
+});
+
+// ─── LIBRARY DIRECTORIES ─────────────────────────────────────────────────────
+
+// Returns null when the paths are usable, otherwise a message for the user
+function validateLibraryPaths({ id, kind, path, path4k }) {
+  const p = normalizeDir(path);
+  if (!p) return 'A directory path is required';
+
+  for (const [label, dir] of [['Directory', p], ['4K directory', normalizeDir(path4k)]]) {
+    if (!dir) continue;
+    try {
+      if (!statSync(dir).isDirectory()) return `${label} is not a folder: ${dir}`;
+    } catch {
+      return `${label} not found: ${dir}`;
+    }
+  }
+
+  if (normalizeDir(path4k) && pathsConflict(p, normalizeDir(path4k))) {
+    return 'The 4K directory cannot be the same as, or inside, the library directory';
+  }
+
+  for (const other of getLibraries({ kind, enabledOnly: true })) {
+    if (other.id === id) continue;
+    if (pathsConflict(other.path, p)) {
+      return `Overlaps existing library "${other.name}" (${other.path})`;
+    }
+  }
+  return null;
+}
+
+router.get('/libraries', (req, res) => {
+  const counts = getLibraryItemCounts();
+  res.json({
+    libraries: getLibraries().map(l => ({ ...l, itemCount: counts[l.id] ?? 0 })),
+    untagged:  getUntaggedCounts(),
+  });
+});
+
+// Add a directory — re-adding a previously removed path restores it, review
+// history and all, instead of failing on the UNIQUE constraint
+router.post('/libraries', (req, res) => {
+  const { kind, name, path, path4k } = req.body ?? {};
+  if (kind !== 'movie' && kind !== 'tv') return res.status(400).json({ error: 'kind must be "movie" or "tv"' });
+
+  const existing = findLibraryByPath(path);
+  if (existing) {
+    if (existing.kind !== kind) {
+      return res.status(400).json({ error: `That directory is already configured as a ${existing.kind === 'movie' ? 'movie' : 'TV'} library` });
+    }
+    const invalid = validateLibraryPaths({ id: existing.id, kind, path, path4k });
+    if (invalid) return res.status(400).json({ error: invalid });
+    const library = updateLibrary(existing.id, {
+      enabled: 1,
+      ...(name   ? { name }   : {}),
+      ...(path4k !== undefined ? { path4k } : {}),
+    });
+    return res.json({ library, restored: !existing.enabled });
+  }
+
+  const invalid = validateLibraryPaths({ kind, path, path4k });
+  if (invalid) return res.status(400).json({ error: invalid });
+  res.json({ library: insertLibrary({ kind, name, path, path4k }), restored: false });
+});
+
+router.patch('/libraries/:id', (req, res) => {
+  const library = getLibraryById(req.params.id);
+  if (!library) return res.status(404).json({ error: 'Library not found' });
+
+  const { name, path, path4k, enabled } = req.body ?? {};
+  // Only re-validate when a path actually changes — a rename or a disable must
+  // still work when the drive happens to be offline
+  if (path !== undefined || path4k !== undefined) {
+    const invalid = validateLibraryPaths({
+      id:     library.id,
+      kind:   library.kind,
+      path:   path   ?? library.path,
+      path4k: path4k !== undefined ? path4k : library.path_4k,
+    });
+    if (invalid) return res.status(400).json({ error: invalid });
+  }
+
+  res.json({
+    library: updateLibrary(library.id, {
+      ...(name    !== undefined ? { name }    : {}),
+      ...(path    !== undefined ? { path }    : {}),
+      ...(path4k  !== undefined ? { path4k }  : {}),
+      ...(enabled !== undefined ? { enabled } : {}),
+    }),
+  });
+});
+
+// Removal is a soft delete — items keep their review status and come back if the
+// directory is added again
+router.delete('/libraries/:id', (req, res) => {
+  const library = getLibraryById(req.params.id);
+  if (!library) return res.status(404).json({ error: 'Library not found' });
+  res.json({ library: updateLibrary(library.id, { enabled: 0 }) });
 });
 
 // ─── TV SHOW ROUTES ──────────────────────────────────────────────────────────

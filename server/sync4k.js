@@ -1,6 +1,6 @@
 import { readdirSync, existsSync, copyFileSync } from 'fs';
 import { join } from 'path';
-import { getProcessedMovieFolders } from './db.js';
+import { getProcessedMovieFolders, getLibraries } from './db.js';
 
 const SUFFIX_RE = /[\s._\-[(]*(4k|2160p|uhd)[\s._\-\])]*/gi;
 
@@ -24,13 +24,29 @@ function findExisting(folder, names) {
 }
 
 export function sync4kArtwork() {
-  const dir4k   = process.env.MOVIE_4K_DIR;
-  const dirMain = process.env.MOVIE_DIR;
-
-  if (!dir4k)   throw new Error('MOVIE_4K_DIR is not set in .env');
-  if (!dirMain) throw new Error('MOVIE_DIR is not set in .env');
+  const libraries = getLibraries({ kind: 'movie', enabledOnly: true }).filter(l => l.path_4k);
+  if (libraries.length === 0) {
+    throw new Error('No movie library has a 4K directory configured — set one on the Options page');
+  }
 
   const processedFolders = getProcessedMovieFolders();
+  const results = libraries.map(lib => ({
+    name: lib.name,
+    ...syncLibrary(lib.path, lib.path_4k, processedFolders),
+  }));
+
+  const totals = results.reduce((acc, r) => ({
+    scanned:   acc.scanned + r.scanned,
+    matched:   acc.matched + r.matched,
+    copied:    acc.copied  + r.copied,
+    pending:   acc.pending + r.pending,
+    unmatched: acc.unmatched + r.unmatched.length,
+  }), { scanned: 0, matched: 0, copied: 0, pending: 0, unmatched: 0 });
+
+  return { totals, libraries: results };
+}
+
+function syncLibrary(dirMain, dir4k, processedFolders) {
   const mainFolders = subdirs(dirMain);
   const mainIndex   = new Map(mainFolders.map(f => [normalize(f), f]));
 

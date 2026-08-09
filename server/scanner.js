@@ -1,28 +1,46 @@
 import { readdirSync, statSync, readFileSync } from 'fs';
 import { join, dirname, extname } from 'path';
-import { upsertMovies, getStats, removeStaleMovies } from './db.js';
+import { upsertMovies, removeStaleMovies, getLibraries } from './db.js';
 
 export function runScan() {
-  const movieDir = process.env.MOVIE_DIR;
-  if (!movieDir) {
-    console.warn('[scan] MOVIE_DIR not set — skipping scan');
-    return { found: 0, added: 0 };
+  const libraries = getLibraries({ kind: 'movie', enabledOnly: true });
+  if (libraries.length === 0) {
+    console.warn('[scan] No movie libraries configured — skipping scan');
+    return { found: 0, added: 0, removed: 0, failed: [] };
   }
 
-  console.log(`[scan] Scanning ${movieDir}…`);
-  const nfoPaths = [];
-  collectNfoFiles(movieDir, nfoPaths);
-
   const movies = [];
-  for (const nfoPath of nfoPaths) {
-    const parsed = parseNfo(nfoPath);
-    if (parsed) movies.push(parsed);
+  const scannedLibraryIds = [];
+  const failed = [];
+
+  for (const lib of libraries) {
+    // A library whose root cannot be read is skipped entirely — treating an
+    // offline drive as "empty" would delete its whole review history below.
+    try {
+      readdirSync(lib.path);
+    } catch {
+      console.warn(`[scan] Cannot read "${lib.name}" (${lib.path}) — skipping, nothing removed`);
+      failed.push({ id: lib.id, name: lib.name, path: lib.path });
+      continue;
+    }
+
+    console.log(`[scan] Scanning ${lib.name} — ${lib.path}…`);
+    const nfoPaths = [];
+    collectNfoFiles(lib.path, nfoPaths);
+
+    let count = 0;
+    for (const nfoPath of nfoPaths) {
+      const parsed = parseNfo(nfoPath);
+      if (parsed) { movies.push({ ...parsed, libraryId: lib.id }); count++; }
+    }
+    scannedLibraryIds.push(lib.id);
+    console.log(`[scan] ${lib.name}: ${count} movie NFO(s)`);
   }
 
   const result = upsertMovies(movies);
-  const removed = removeStaleMovies(movies.map(m => m.folderPath));
+  const removed = removeStaleMovies(movies.map(m => m.folderPath), scannedLibraryIds);
   console.log(`[scan] Done — ${result.found} NFOs found, ${result.added} added, ${removed} removed`);
-  return { ...result, removed };
+  return { ...result, removed, failed };
 }
 
 // Recursively collect all .nfo files under a directory

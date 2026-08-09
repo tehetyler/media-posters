@@ -26,6 +26,12 @@ export const sync4kArtwork          = ()  => req('POST', '/api/options/sync-4k-a
 
 export const proxyUrl = (url) => `/api/proxy?url=${encodeURIComponent(url)}`;
 
+// ── Library directories ───────────────────────────────────────────────────────
+export const fetchLibraries = ()            => req('GET',    '/api/libraries');
+export const createLibrary  = (body)        => req('POST',   '/api/libraries', body);
+export const updateLibrary  = (id, fields)  => req('PATCH',  `/api/libraries/${id}`, fields);
+export const removeLibrary  = (id)          => req('DELETE', `/api/libraries/${id}`);
+
 // ── TV Shows ──────────────────────────────────────────────────────────────────
 export const fetchTvQueue          = ()              => req('GET',  '/api/tv/queue');
 export const fetchTvShows          = ()              => req('GET',  '/api/tv/shows');

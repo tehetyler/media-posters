@@ -4,14 +4,21 @@ A locally-hosted web app for reviewing and selecting artwork for your movie and 
 
 ## Features
 
+### Libraries
+- Any number of movie and TV directories, managed on the Options page
+- Each movie library can have its own matching 4K directory
+- Library pages can be filtered by source directory
+- Removing a directory hides its items but keeps their review history — re-adding restores everything
+- A directory that can't be read (offline drive, renamed folder) is skipped, never wiped
+
 ### Movies
-- Scans movie directories recursively for `.nfo` files written by TinyMediaManager
+- Scans every movie directory recursively for `.nfo` files written by TinyMediaManager
 - Fetches poster, backdrop, and clearlogo options from TMDB
 - Downloads selected artwork directly to each movie's folder
 - Tracks review status per movie in SQLite
 
 ### TV Shows
-- Scans TV show directory for show folders and detects season subfolders automatically
+- Scans every TV directory for show folders and detects season subfolders automatically
 - Auto-matches shows to TMDB by title/year (configurable confidence threshold)
 - Fetches series poster, background, clearlogo, and per-season poster options from TMDB
 - "Fix Match" button to correct or change the TMDB match for any show
@@ -21,10 +28,10 @@ A locally-hosted web app for reviewing and selecting artwork for your movie and 
 
 ### General
 - Currently-on-disk artwork shown alongside TMDB options for reference
-- Library browser with search, sort, and filter by status
+- Library browser with search, sort, and filter by status or source directory
 - PWA — installable on mobile devices
 - Accessible from other devices on the local network
-- Options page with force sync and mark-skipped-as-reviewed for both movies and TV
+- Options page with directory management, force sync, and mark-skipped-as-reviewed for both movies and TV
 
 ## Requirements
 
@@ -43,11 +50,16 @@ cd media-posters
 **2. Create `server/.env`**
 ```
 MOVIE_DIR=D:\path\to\your\movies
+MOVIE_4K_DIR=D:\path\to\your\movies 4k
 TV_SHOW_DIR=D:\path\to\your\tv shows
 TMDB_API_KEY=your_tmdb_api_key_here
 PORT=3001
 TV_MATCH_MIN_POPULARITY=5
 ```
+
+`MOVIE_DIR`, `MOVIE_4K_DIR`, and `TV_SHOW_DIR` seed your first libraries on the very first run.
+After that, add, rename, and remove directories on the **Options** page — the list lives in
+`server/data.db` and `.env` is no longer consulted for paths.
 
 **3. Run**
 ```
@@ -85,7 +97,8 @@ Open `http://localhost:5173` in your browser. From other devices on the same net
 ```
 media-posters/
 ├── server/
-│   ├── db.js            # SQLite database (movies + TV shows)
+│   ├── db.js            # SQLite database (movies + TV shows + libraries)
+│   ├── paths.js         # Path normalization / containment helpers
 │   ├── scanner.js       # NFO file scanner (movies)
 │   ├── tvscanner.js     # TV show directory scanner + TMDB auto-match
 │   ├── tmdb.js          # TMDB API client (movies + TV)
@@ -120,14 +133,14 @@ Two files are not in the repo and must be backed up manually:
 Contains your TMDB API key and directory paths.
 
 ### 2. `server/data.db` ⚠️ Required to preserve review history
-The SQLite database storing all movie and TV show records and their review status. Losing this resets all items to pending.
+The SQLite database storing all movie and TV show records, their review status, **and your configured library directories**. Losing this resets all items to pending and reverts the directory list to the `.env` seed.
 
 ### Migration steps
 
 1. Clone the repo and install dependencies on the new machine.
 2. Copy `server/.env` from the old machine.
 3. Copy `server/data.db` from the old machine.
-4. Update `MOVIE_DIR` and `TV_SHOW_DIR` in `server/.env` if paths differ.
-5. Run `start.bat`.
+4. Run `start.bat`.
+5. If paths differ on the new machine, edit each directory on the **Options** page (`.env` is only read when `data.db` has no libraries yet).
 
-> If folder paths change, existing DB records will have stale paths. Run a fresh scan from the Options page — items at new paths will appear as pending again.
+> If folder paths change, existing DB records will have stale paths and show up as "items outside every directory" on the Options page. They keep their review status and are never deleted by a scan; items at the new paths appear as pending.

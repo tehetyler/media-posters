@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { fetchTvShows } from '../api';
+import { fetchTvShows, fetchLibraries } from '../api';
 import NavBar from './NavBar';
 
 const STATUS_COLORS = {
@@ -9,24 +9,30 @@ const STATUS_COLORS = {
 };
 
 export default function TvLibraryPage({ onBack, onReview }) {
-  const [shows,   setShows]   = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [shows,     setShows]     = useState([]);
+  const [libraries, setLibraries] = useState([]);
+  const [loading,   setLoading]   = useState(true);
   const [search,  setSearch]  = useState(() => sessionStorage.getItem('tvlib.search')  ?? '');
   const [status,  setStatus]  = useState(() => sessionStorage.getItem('tvlib.status')  ?? 'all');
+  const [library, setLibrary] = useState(() => sessionStorage.getItem('tvlib.library') ?? 'all');
   const [sortBy,  setSortBy]  = useState(() => sessionStorage.getItem('tvlib.sortBy')  ?? 'title');
   const [sortDir, setSortDir] = useState(() => sessionStorage.getItem('tvlib.sortDir') ?? 'asc');
 
   useEffect(() => {
     sessionStorage.setItem('tvlib.search',  search);
     sessionStorage.setItem('tvlib.status',  status);
+    sessionStorage.setItem('tvlib.library', library);
     sessionStorage.setItem('tvlib.sortBy',  sortBy);
     sessionStorage.setItem('tvlib.sortDir', sortDir);
-  }, [search, status, sortBy, sortDir]);
+  }, [search, status, library, sortBy, sortDir]);
 
   useEffect(() => {
     fetchTvShows()
       .then(setShows)
       .finally(() => setLoading(false));
+    fetchLibraries()
+      .then(d => setLibraries(d.libraries.filter(l => l.enabled && l.kind === 'tv')))
+      .catch(() => {});
   }, []);
 
   const filtered = useMemo(() => {
@@ -36,6 +42,7 @@ export default function TvLibraryPage({ onBack, onReview }) {
       list = list.filter(s => s.title.toLowerCase().includes(q));
     }
     if (status !== 'all') list = list.filter(s => s.status === status);
+    if (library !== 'all') list = list.filter(s => String(s.library_id) === library);
 
     return [...list].sort((a, b) => {
       let cmp = 0;
@@ -44,7 +51,7 @@ export default function TvLibraryPage({ onBack, onReview }) {
       else if (sortBy === 'status') cmp = a.status.localeCompare(b.status);
       return sortDir === 'asc' ? cmp : -cmp;
     });
-  }, [shows, search, status, sortBy, sortDir]);
+  }, [shows, search, status, library, sortBy, sortDir]);
 
   return (
     <div style={s.page}>
@@ -70,6 +77,14 @@ export default function TvLibraryPage({ onBack, onReview }) {
             <option value="reviewed">Reviewed</option>
             <option value="skipped">Skipped</option>
           </select>
+          {libraries.length > 1 && (
+            <select style={s.select} value={library} onChange={e => setLibrary(e.target.value)}>
+              <option value="all">All libraries</option>
+              {libraries.map(l => (
+                <option key={l.id} value={String(l.id)}>{l.name}</option>
+              ))}
+            </select>
+          )}
           <select style={s.select} value={sortBy} onChange={e => setSortBy(e.target.value)}>
             <option value="title">Sort: Title</option>
             <option value="year">Sort: Year</option>
@@ -91,7 +106,12 @@ export default function TvLibraryPage({ onBack, onReview }) {
         ) : (
           <div className="library-grid">
             {filtered.map(show => (
-              <ShowRow key={show.id} show={show} onReview={() => onReview(show.id)} />
+              <ShowRow
+                key={show.id}
+                show={show}
+                showLibrary={libraries.length > 1}
+                onReview={() => onReview(show.id)}
+              />
             ))}
           </div>
         )}
@@ -100,7 +120,7 @@ export default function TvLibraryPage({ onBack, onReview }) {
   );
 }
 
-function ShowRow({ show, onReview }) {
+function ShowRow({ show, showLibrary, onReview }) {
   const sc = STATUS_COLORS[show.status] ?? STATUS_COLORS.pending;
   const seasons = JSON.parse(show.seasons ?? '[]');
   return (
@@ -109,6 +129,9 @@ function ShowRow({ show, onReview }) {
         <div style={s.rowTitle}>
           <span style={s.showTitle}>{show.title}</span>
           {show.year && <span style={s.showYear}>{show.year}</span>}
+          {showLibrary && show.library_name && (
+            <span style={s.libraryChip}>{show.library_name}</span>
+          )}
         </div>
         <span style={{ ...s.statusBadge, background: sc.bg, color: sc.text }}>
           {show.status}
@@ -152,6 +175,7 @@ const s = {
   rowTitle:    { display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 },
   showTitle:   { fontWeight: 600, fontSize: 14, color: '#e0e0ff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   showYear:    { fontSize: 13, color: '#555', flexShrink: 0 },
+  libraryChip: { fontSize: 11, color: '#7a7ab0', background: '#1e1e38', borderRadius: 4, padding: '2px 7px', flexShrink: 0, whiteSpace: 'nowrap' },
   statusBadge: { fontSize: 11, fontWeight: 600, borderRadius: 4, padding: '3px 8px', textTransform: 'capitalize', whiteSpace: 'nowrap' },
   meta:        { fontSize: 12, color: '#666', whiteSpace: 'nowrap' },
   reviewBtn:   { background: '#1e2e4a', color: '#6ea8fe', padding: '6px 14px', fontSize: 13, flexShrink: 0 },
