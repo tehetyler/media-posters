@@ -9,13 +9,20 @@ async function req(method, path, body) {
   return data;
 }
 
+// Drops undefined/null but keeps '' — an empty `year` means "search without a year filter"
+function qs(params) {
+  const pairs = Object.entries(params ?? {}).filter(([, v]) => v !== undefined && v !== null);
+  const query = new URLSearchParams(pairs).toString();
+  return query ? `?${query}` : '';
+}
+
 export const fetchQueue          = ()                => req('GET',  '/api/queue');
 export const fetchMovies         = ()                => req('GET',  '/api/movies');
 export const fetchMovieById      = (id)              => req('GET',  `/api/movie/${id}`);
 export const fetchArtwork        = (id)              => req('GET',  `/api/movie/${id}/artwork`);
 export const fetchCurrentArtwork = (id)              => req('GET',  `/api/movie/${id}/current-artwork`);
-export const searchMovieById     = (id)              => req('GET',  `/api/movie/${id}/search`);
-export const setMovieTmdbId      = (id, tmdbId)      => req('POST', `/api/movie/${id}/set-tmdb`, { tmdbId });
+export const searchMovieById     = (id, params)      => req('GET',  `/api/movie/${id}/search${qs(params)}`);
+export const setMovieTmdbId      = (id, match)       => req('POST', `/api/movie/${id}/set-tmdb`, match);
 export const saveSelections      = (id, selections)  => req('POST', `/api/movie/${id}/select`, { selections });
 export const skipMovie           = (id)              => req('POST', `/api/movie/${id}/skip`);
 export const scanNow         = ()                   => req('POST', '/api/scan');
@@ -37,8 +44,8 @@ export const fetchTvQueue          = ()              => req('GET',  '/api/tv/que
 export const fetchTvShows          = ()              => req('GET',  '/api/tv/shows');
 export const fetchTvStatus         = ()              => req('GET',  '/api/tv/status');
 export const fetchTvShowById       = (id)            => req('GET',  `/api/tv/${id}`);
-export const searchTvShowById      = (id)            => req('GET',  `/api/tv/${id}/search`);
-export const setTvShowTmdbId       = (id, tmdbId)   => req('POST', `/api/tv/${id}/set-tmdb`, { tmdbId });
+export const searchTvShowById      = (id, params)    => req('GET',  `/api/tv/${id}/search${qs(params)}`);
+export const setTvShowTmdbId       = (id, match)     => req('POST', `/api/tv/${id}/set-tmdb`, match);
 export const fetchTvArtwork        = (id)            => req('GET',  `/api/tv/${id}/artwork`);
 export const fetchTvSeasonArtwork  = (id, n)         => req('GET',  `/api/tv/${id}/season/${n}/artwork`);
 export const fetchTvCurrentArtwork = (id)            => req('GET',  `/api/tv/${id}/current-artwork`);

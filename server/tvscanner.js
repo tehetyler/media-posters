@@ -1,6 +1,6 @@
 import { readdirSync, statSync } from 'fs';
 import { join } from 'path';
-import { upsertShows, getUnmatchedShows, setShowTmdbId, removeStaleShows, getLibraries } from './db.js';
+import { upsertShows, getUnmatchedShows, setShowMatch, removeStaleShows, getLibraries } from './db.js';
 import { searchTvShow } from './tmdb.js';
 
 export async function runTvScan() {
@@ -51,7 +51,7 @@ export async function runTvScan() {
     try {
       const candidates = await searchTvShow(show.title, show.year);
       if (candidates.length > 0 && candidates[0].popularity >= minPop) {
-        setShowTmdbId(show.id, String(candidates[0].tmdbId));
+        setShowMatch(show.id, { tmdbId: String(candidates[0].tmdbId) });
         console.log(`[tv-scan] Auto-matched "${show.title}" → TMDB ${candidates[0].tmdbId} (pop: ${candidates[0].popularity.toFixed(1)})`);
       }
     } catch {

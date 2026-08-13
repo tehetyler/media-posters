@@ -15,6 +15,7 @@ A locally-hosted web app for reviewing and selecting artwork for your movie and 
 - Scans every movie directory recursively for `.nfo` files written by TinyMediaManager
 - Fetches poster, backdrop, and clearlogo options from TMDB
 - Downloads selected artwork directly to each movie's folder
+- "Fix Match" button to correct or change the TMDB match for any movie
 - Tracks review status per movie in SQLite
 
 ### TV Shows
@@ -25,6 +26,13 @@ A locally-hosted web app for reviewing and selecting artwork for your movie and 
 - Season poster sections hidden for shows with no season subfolders
 - Resets shows to pending when new seasons are detected on rescan
 - Removes stale DB entries when shows/movies are deleted from disk
+
+### Fixing a wrong match
+The **Fix Match** panel on either review page is a full TMDB search, not just a list of guesses:
+- Edit the **title** and **year**, then Search — clear the year entirely to search every release with that title
+- Paste a **TMDB ID or URL** to jump straight to one specific title when search can't surface it
+- Picking a match adopts that title's name and year, so the library list and any later search start from the correct values
+- Manual matches are protected: a later scan won't revert them to the NFO or folder-derived values
 
 ### General
 - Currently-on-disk artwork shown alongside TMDB options for reference
@@ -111,6 +119,7 @@ media-posters/
         ├── App.jsx
         └── components/
             ├── HomePage.jsx
+            ├── MatchPanel.jsx
             ├── LibraryPage.jsx
             ├── TvLibraryPage.jsx
             ├── ReviewScreen.jsx

@@ -21,6 +21,7 @@ export function initDb() {
       year        INTEGER,
       folder_path TEXT NOT NULL UNIQUE,
       nfo_path    TEXT NOT NULL,
+      tmdb_manual INTEGER NOT NULL DEFAULT 0,
       reviewed    INTEGER NOT NULL DEFAULT 0,
       skipped     INTEGER NOT NULL DEFAULT 0,
       reviewed_at DATETIME,
@@ -39,6 +40,7 @@ export function initDb() {
       year        INTEGER,
       folder_path TEXT NOT NULL UNIQUE,
       seasons     TEXT,
+      tmdb_manual INTEGER NOT NULL DEFAULT 0,
       reviewed    INTEGER NOT NULL DEFAULT 0,
       skipped     INTEGER NOT NULL DEFAULT 0,
       reviewed_at DATETIME,
@@ -65,6 +67,8 @@ export function initDb() {
   try { db.exec('ALTER TABLE shows  ADD COLUMN tvdb_id TEXT');       } catch {}
   try { db.exec('ALTER TABLE movies ADD COLUMN library_id INTEGER'); } catch {}
   try { db.exec('ALTER TABLE shows  ADD COLUMN library_id INTEGER'); } catch {}
+  try { db.exec('ALTER TABLE movies ADD COLUMN tmdb_manual INTEGER NOT NULL DEFAULT 0'); } catch {}
+  try { db.exec('ALTER TABLE shows  ADD COLUMN tmdb_manual INTEGER NOT NULL DEFAULT 0'); } catch {}
 
   seedLibrariesFromEnv();
   backfillLibraryIds();
@@ -207,9 +211,9 @@ export function upsertMovies(movies) {
     INSERT INTO movies (tmdb_id, title, year, folder_path, nfo_path, library_id)
     VALUES (?, ?, ?, ?, ?, ?)
     ON CONFLICT(folder_path) DO UPDATE SET
-      tmdb_id    = excluded.tmdb_id,
-      title      = excluded.title,
-      year       = excluded.year,
+      tmdb_id    = CASE WHEN movies.tmdb_manual = 1 THEN movies.tmdb_id ELSE excluded.tmdb_id END,
+      title      = CASE WHEN movies.tmdb_manual = 1 THEN movies.title   ELSE excluded.title   END,
+      year       = CASE WHEN movies.tmdb_manual = 1 THEN movies.year    ELSE excluded.year    END,
       nfo_path   = excluded.nfo_path,
       library_id = excluded.library_id
   `);
@@ -325,8 +329,8 @@ export function upsertShows(shows) {
     INSERT INTO shows (tmdb_id, title, year, folder_path, seasons, library_id)
     VALUES (?, ?, ?, ?, ?, ?)
     ON CONFLICT(folder_path) DO UPDATE SET
-      title      = excluded.title,
-      year       = excluded.year,
+      title      = CASE WHEN shows.tmdb_manual = 1 THEN shows.title ELSE excluded.title END,
+      year       = CASE WHEN shows.tmdb_manual = 1 THEN shows.year  ELSE excluded.year  END,
       seasons    = excluded.seasons,
       library_id = excluded.library_id
   `);
@@ -421,12 +425,27 @@ export function markShowSkippedAsPending() {
   return result.changes;
 }
 
-export function setMovieTmdbId(id, tmdbId) {
-  d().prepare('UPDATE movies SET tmdb_id = ? WHERE id = ?').run(tmdbId, Number(id));
+// Point a row at a TMDB id, optionally adopting that title's name and year. `manual` marks
+// the match as user-chosen so a later scan won't revert it to the NFO / folder-derived values
+// (see the CASE guards in upsertMovies / upsertShows).
+export function setMovieMatch(id, { tmdbId, title, year, manual = false }) {
+  setMatch('movies', id, { tmdbId, title, year, manual });
 }
 
-export function setShowTmdbId(id, tmdbId) {
-  d().prepare('UPDATE shows SET tmdb_id = ? WHERE id = ?').run(tmdbId, Number(id));
+export function setShowMatch(id, { tmdbId, title, year, manual = false }) {
+  setMatch('shows', id, { tmdbId, title, year, manual });
+}
+
+function setMatch(table, id, { tmdbId, title, year, manual }) {
+  const sets   = ['tmdb_id = ?'];
+  const values = [tmdbId];
+
+  if (title) { sets.push('title = ?'); values.push(title); }
+  if (year != null) { sets.push('year = ?'); values.push(year); }
+  if (manual) sets.push('tmdb_manual = 1');
+
+  values.push(Number(id));
+  d().prepare(`UPDATE ${table} SET ${sets.join(', ')} WHERE id = ?`).run(...values);
 }
 
 export function setShowTvdbId(id, tvdbId) {

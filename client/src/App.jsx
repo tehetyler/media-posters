@@ -90,6 +90,23 @@ function ReviewerPage({ mode, specificId, onBack }) {
   const [allDone,        setAllDone]        = useState(false);
   const [searchResults,  setSearchResults]  = useState(null);
   const [searchLoading,  setSearchLoading]  = useState(false);
+  const [searchError,    setSearchError]    = useState(null);
+  const [searchOpen,     setSearchOpen]     = useState(false);
+
+  // Runs a TMDB search for `movie`. With no params the server falls back to the row's
+  // stored title/year; the match panel passes overrides typed by the user.
+  const runSearchFor = useCallback(async (id, params) => {
+    setSearchLoading(true);
+    setSearchError(null);
+    try {
+      setSearchResults(await searchMovieById(id, params));
+    } catch (err) {
+      setSearchResults([]);
+      setSearchError(err.message);
+    } finally {
+      setSearchLoading(false);
+    }
+  }, []);
 
   const loadArtworkFor = useCallback(async (m) => {
     if (!m) return;
@@ -97,19 +114,13 @@ function ReviewerPage({ mode, specificId, onBack }) {
     setCurrentArtwork({});
     setArtworkError(null);
     setSearchResults(null);
+    setSearchError(null);
     setSearchLoading(false);
+    setSearchOpen(!m.tmdb_id);
 
     if (!m.tmdb_id) {
-      setSearchLoading(true);
       fetchCurrentArtwork(m.id).then(setCurrentArtwork).catch(() => {});
-      try {
-        const results = await searchMovieById(m.id);
-        setSearchResults(results);
-      } catch {
-        setSearchResults([]);
-      } finally {
-        setSearchLoading(false);
-      }
+      await runSearchFor(m.id);
       return;
     }
 
@@ -126,7 +137,7 @@ function ReviewerPage({ mode, specificId, onBack }) {
     } finally {
       setArtworkLoading(false);
     }
-  }, []);
+  }, [runSearchFor]);
 
   // Load the initial movie depending on mode
   useEffect(() => {
@@ -180,28 +191,31 @@ function ReviewerPage({ mode, specificId, onBack }) {
     }
   }
 
-  async function handleOpenSearch() {
-    setSearchLoading(true);
+  function handleOpenSearch() {
+    setSearchOpen(true);
     setSearchResults(null);
-    try {
-      const results = await searchMovieById(movie.id);
-      setSearchResults(results);
-    } catch {
-      setSearchResults([]);
-    } finally {
-      setSearchLoading(false);
-    }
+    return runSearchFor(movie.id);
+  }
+
+  function handleSearch(params) {
+    return runSearchFor(movie.id, params);
   }
 
   function handleCloseSearch() {
+    setSearchOpen(false);
     setSearchResults(null);
+    setSearchError(null);
     setSearchLoading(false);
   }
 
-  async function handleFixMatch(tmdbId) {
+  async function handleFixMatch(result) {
     setError(null);
     try {
-      const updated = await setMovieTmdbId(movie.id, tmdbId);
+      const updated = await setMovieTmdbId(movie.id, {
+        tmdbId: result.tmdbId,
+        title:  result.name,
+        year:   result.year,
+      });
       setMovie(updated);
       await loadArtworkFor(updated);
     } catch (err) {
@@ -266,11 +280,14 @@ function ReviewerPage({ mode, specificId, onBack }) {
             artworkError={artworkError}
             searchResults={searchResults}
             searchLoading={searchLoading}
+            searchError={searchError}
+            searchOpen={searchOpen}
             onSave={handleSave}
             onSkip={handleSkip}
             onFixMatch={handleFixMatch}
             onOpenSearch={handleOpenSearch}
             onCloseSearch={handleCloseSearch}
+            onSearch={handleSearch}
             mode={mode}
           />
         ) : null}

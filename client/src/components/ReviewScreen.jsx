@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import ArtworkPanel from './ArtworkPanel';
 import CurrentArtworkBanner from './CurrentArtworkBanner';
+import MatchPanel from './MatchPanel';
 
 const PANELS = [
   { type: 'poster',    label: 'Poster',     key: 'posters' },
@@ -10,15 +11,14 @@ const PANELS = [
 
 export default function ReviewScreen({
   movie, artwork, currentArtwork = {}, artworkLoading, artworkError,
-  searchResults, searchLoading,
-  onSave, onSkip, onFixMatch, onOpenSearch, onCloseSearch,
+  searchResults, searchLoading, searchError, searchOpen,
+  onSave, onSkip, onFixMatch, onOpenSearch, onCloseSearch, onSearch,
   mode = 'queue',
 }) {
   const [selections, setSelections] = useState({});
   const [saving, setSaving] = useState(false);
 
-  const showMatchPanel = searchResults !== null || searchLoading;
-  const artworkReady = movie.tmdb_id && !showMatchPanel;
+  const artworkReady = movie.tmdb_id && !searchOpen;
 
   function handleSelect(type, url) {
     setSelections(prev => ({ ...prev, [type]: prev[type] === url ? null : url }));
@@ -49,7 +49,7 @@ export default function ReviewScreen({
               <span style={s.matchBadge}>TMDB {movie.tmdb_id}</span>
               <button
                 onClick={onOpenSearch}
-                disabled={showMatchPanel}
+                disabled={searchOpen}
                 style={s.fixMatchBtn}
               >
                 Fix Match
@@ -61,11 +61,18 @@ export default function ReviewScreen({
         </div>
       </div>
 
-      {showMatchPanel && (
+      {searchOpen && (
         <MatchPanel
+          key={movie.id}
           results={searchResults}
           loading={searchLoading}
+          error={searchError}
           currentTmdbId={movie.tmdb_id}
+          defaultTitle={movie.title}
+          defaultYear={movie.year}
+          accent="#2563eb"
+          kindLabel="movie"
+          onSearch={onSearch}
           onSelect={onFixMatch}
           onClose={movie.tmdb_id ? onCloseSearch : null}
         />
@@ -112,63 +119,6 @@ export default function ReviewScreen({
   );
 }
 
-function MatchPanel({ results, loading, currentTmdbId, onSelect, onClose }) {
-  return (
-    <div style={mp.panel}>
-      <div style={mp.header}>
-        <span style={mp.title}>
-          {currentTmdbId ? 'Change TMDB Match' : 'Select TMDB Match'}
-        </span>
-        {onClose && (
-          <button onClick={onClose} style={mp.closeBtn}>✕ Cancel</button>
-        )}
-      </div>
-
-      {loading ? (
-        <div style={mp.status}>Searching TMDB…</div>
-      ) : !results || results.length === 0 ? (
-        <div style={mp.status}>No results found — check that the movie folder name matches the title.</div>
-      ) : (
-        <div style={mp.list}>
-          {results.map(r => {
-            const isActive = String(r.tmdbId) === String(currentTmdbId);
-            return (
-              <button
-                key={r.tmdbId}
-                style={{ ...mp.result, ...(isActive ? mp.resultActive : {}) }}
-                onClick={() => onSelect(String(r.tmdbId))}
-              >
-                {r.posterPath ? (
-                  <img
-                    src={`/api/proxy?url=${encodeURIComponent(`https://image.tmdb.org/t/p/w92${r.posterPath}`)}`}
-                    alt=""
-                    style={mp.thumb}
-                    onError={e => { e.currentTarget.style.display = 'none'; }}
-                  />
-                ) : (
-                  <div style={mp.thumbPlaceholder} />
-                )}
-                <div style={mp.info}>
-                  <span style={mp.name}>{r.name}</span>
-                  <span style={mp.meta}>
-                    {r.year ?? '?'} · TMDB {r.tmdbId} · pop {r.popularity.toFixed(0)}
-                  </span>
-                  {r.overview && (
-                    <span style={mp.overview}>
-                      {r.overview.length > 130 ? r.overview.slice(0, 130) + '…' : r.overview}
-                    </span>
-                  )}
-                </div>
-                {isActive && <span style={mp.check}>✓</span>}
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
 const s = {
   container:   { display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 1400, margin: '0 auto' },
   movieHeader: { display: 'flex', flexDirection: 'column', gap: 8 },
@@ -185,31 +135,4 @@ const s = {
   hint:    { fontSize: 13, color: '#555', marginRight: 'auto', flexBasis: '100%', order: -1 },
   skipBtn: { background: '#1e1e38', color: '#8080a0' },
   saveBtn: { background: '#2563eb', color: '#fff', padding: '10px 28px' },
-};
-
-const mp = {
-  panel: {
-    background: '#13132a', border: '1px solid #3a2a60',
-    borderRadius: 10, padding: '16px',
-    display: 'flex', flexDirection: 'column', gap: 12,
-  },
-  header:  { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
-  title:   { fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#a080d0' },
-  closeBtn: { background: '#1e1e38', color: '#8080a0', fontSize: 12, padding: '4px 10px' },
-  status:  { fontSize: 13, color: '#666', padding: '8px 0' },
-  list:    { display: 'flex', flexDirection: 'column', gap: 6 },
-  result: {
-    display: 'flex', alignItems: 'flex-start', gap: 12,
-    background: '#0e0e22', border: '1px solid #252540',
-    borderRadius: 8, padding: '10px 12px',
-    cursor: 'pointer', textAlign: 'left', width: '100%',
-  },
-  resultActive: { border: '1px solid #2563eb', background: '#0a1830' },
-  thumb: { width: 46, flexShrink: 0, borderRadius: 4, display: 'block' },
-  thumbPlaceholder: { width: 46, height: 68, flexShrink: 0, borderRadius: 4, background: '#1e1e38' },
-  info:  { display: 'flex', flexDirection: 'column', gap: 3, flex: 1, minWidth: 0 },
-  name:  { fontSize: 14, fontWeight: 600, color: '#e0e0ff' },
-  meta:  { fontSize: 12, color: '#666' },
-  overview: { fontSize: 12, color: '#555', lineHeight: 1.45, marginTop: 2 },
-  check: { fontSize: 14, color: '#2563eb', fontWeight: 700, flexShrink: 0, alignSelf: 'center' },
 };

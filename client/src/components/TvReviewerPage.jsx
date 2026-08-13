@@ -20,6 +20,23 @@ export default function TvReviewerPage({ mode, specificId, onBack }) {
   const [allDone,        setAllDone]        = useState(false);
   const [searchResults,  setSearchResults]  = useState(null);
   const [searchLoading,  setSearchLoading]  = useState(false);
+  const [searchError,    setSearchError]    = useState(null);
+  const [searchOpen,     setSearchOpen]     = useState(false);
+
+  // Runs a TMDB search for `show`. With no params the server falls back to the row's
+  // stored title/year; the match panel passes overrides typed by the user.
+  const runSearchFor = useCallback(async (id, params) => {
+    setSearchLoading(true);
+    setSearchError(null);
+    try {
+      setSearchResults(await searchTvShowById(id, params));
+    } catch (err) {
+      setSearchResults([]);
+      setSearchError(err.message);
+    } finally {
+      setSearchLoading(false);
+    }
+  }, []);
 
   const loadArtworkFor = useCallback(async (s) => {
     if (!s) return;
@@ -28,20 +45,14 @@ export default function TvReviewerPage({ mode, specificId, onBack }) {
     setCurrentArtwork({});
     setArtworkError(null);
     setSearchResults(null);
+    setSearchError(null);
     setSearchLoading(false);
+    setSearchOpen(!s.tmdb_id);
 
     if (!s.tmdb_id) {
       // No match yet — auto-trigger search so the match panel is pre-populated
-      setSearchLoading(true);
       fetchTvCurrentArtwork(s.id).then(setCurrentArtwork).catch(() => {});
-      try {
-        const results = await searchTvShowById(s.id);
-        setSearchResults(results);
-      } catch {
-        setSearchResults([]);
-      } finally {
-        setSearchLoading(false);
-      }
+      await runSearchFor(s.id);
       return;
     }
 
@@ -64,7 +75,7 @@ export default function TvReviewerPage({ mode, specificId, onBack }) {
     } finally {
       setArtworkLoading(false);
     }
-  }, []);
+  }, [runSearchFor]);
 
   useEffect(() => {
     setAllDone(false);
@@ -136,28 +147,31 @@ export default function TvReviewerPage({ mode, specificId, onBack }) {
     }
   }
 
-  async function handleOpenSearch() {
-    setSearchLoading(true);
+  function handleOpenSearch() {
+    setSearchOpen(true);
     setSearchResults(null);
-    try {
-      const results = await searchTvShowById(show.id);
-      setSearchResults(results);
-    } catch {
-      setSearchResults([]);
-    } finally {
-      setSearchLoading(false);
-    }
+    return runSearchFor(show.id);
+  }
+
+  function handleSearch(params) {
+    return runSearchFor(show.id, params);
   }
 
   function handleCloseSearch() {
+    setSearchOpen(false);
     setSearchResults(null);
+    setSearchError(null);
     setSearchLoading(false);
   }
 
-  async function handleFixMatch(tmdbId) {
+  async function handleFixMatch(result) {
     setError(null);
     try {
-      const updated = await setTvShowTmdbId(show.id, tmdbId);
+      const updated = await setTvShowTmdbId(show.id, {
+        tmdbId: result.tmdbId,
+        title:  result.name,
+        year:   result.year,
+      });
       setShow(updated);
       await loadArtworkFor(updated);
     } catch (err) {
@@ -204,11 +218,14 @@ export default function TvReviewerPage({ mode, specificId, onBack }) {
             artworkError={artworkError}
             searchResults={searchResults}
             searchLoading={searchLoading}
+            searchError={searchError}
+            searchOpen={searchOpen}
             onSave={handleSave}
             onSkip={handleSkip}
             onFixMatch={handleFixMatch}
             onOpenSearch={handleOpenSearch}
             onCloseSearch={handleCloseSearch}
+            onSearch={handleSearch}
             mode={mode}
           />
         ) : null}

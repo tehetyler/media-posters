@@ -26,7 +26,21 @@ export async function fetchArtwork(tmdbId) {
   };
 }
 
-export async function searchMovie(title, year) {
+// Both /search/movie and /movie/{id} results collapse to this shape, as do their TV
+// counterparts — the only difference is which field holds the title and the air date.
+function toCandidate(r, titleKey, dateKey) {
+  const date = r[dateKey];
+  return {
+    tmdbId:      r.id,
+    name:        r[titleKey],
+    year:        date ? parseInt(date.slice(0, 4)) : null,
+    overview:    r.overview ?? null,
+    posterPath:  r.poster_path ?? null,
+    popularity:  r.popularity ?? 0,
+  };
+}
+
+export async function searchMovie(title, year, limit = 20) {
   const params = {
     api_key: apiKey(),
     query: title,
@@ -35,17 +49,10 @@ export async function searchMovie(title, year) {
   if (year) params.primary_release_year = year;
 
   const { data } = await axios.get(`${BASE}/search/movie`, { params, timeout: 15000 });
-  return (data.results ?? []).slice(0, 5).map(r => ({
-    tmdbId:      r.id,
-    name:        r.title,
-    year:        r.release_date ? parseInt(r.release_date.slice(0, 4)) : null,
-    overview:    r.overview ?? null,
-    posterPath:  r.poster_path ?? null,
-    popularity:  r.popularity ?? 0,
-  }));
+  return (data.results ?? []).slice(0, limit).map(r => toCandidate(r, 'title', 'release_date'));
 }
 
-export async function searchTvShow(title, year) {
+export async function searchTvShow(title, year, limit = 20) {
   const params = {
     api_key: apiKey(),
     query: title,
@@ -54,14 +61,27 @@ export async function searchTvShow(title, year) {
   if (year) params.first_air_date_year = year;
 
   const { data } = await axios.get(`${BASE}/search/tv`, { params, timeout: 15000 });
-  return (data.results ?? []).slice(0, 5).map(r => ({
-    tmdbId:      r.id,
-    name:        r.name,
-    year:        r.first_air_date ? parseInt(r.first_air_date.slice(0, 4)) : null,
-    overview:    r.overview ?? null,
-    posterPath:  r.poster_path ?? null,
-    popularity:  r.popularity ?? 0,
-  }));
+  return (data.results ?? []).slice(0, limit).map(r => toCandidate(r, 'name', 'first_air_date'));
+}
+
+// Look up one title by its TMDB id — the escape hatch when no search terms surface it.
+// Returns null for an id that doesn't exist.
+export async function fetchMovieDetails(tmdbId) {
+  return fetchDetails(`${BASE}/movie/${tmdbId}`, 'title', 'release_date');
+}
+
+export async function fetchTvDetails(tmdbId) {
+  return fetchDetails(`${BASE}/tv/${tmdbId}`, 'name', 'first_air_date');
+}
+
+async function fetchDetails(url, titleKey, dateKey) {
+  try {
+    const { data } = await axios.get(url, { params: { api_key: apiKey() }, timeout: 15000 });
+    return toCandidate(data, titleKey, dateKey);
+  } catch (err) {
+    if (err.response?.status === 404) return null;
+    throw err;
+  }
 }
 
 export async function fetchTvArtwork(tmdbId) {

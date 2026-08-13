@@ -2,9 +2,9 @@ import { Router } from 'express';
 import axios from 'axios';
 import { existsSync, createReadStream, statSync } from 'fs';
 import { join, resolve, extname } from 'path';
-import { getNextPending, getMovieById, getMovies, markReviewed, markSkipped, markSkippedAsReviewed, markSkippedAsPending, getStats, setMovieTmdbId, getShows, getShowById, getNextPendingShow, markShowReviewed, markShowSkipped, markShowSkippedAsReviewed, markShowSkippedAsPending, setShowTmdbId, setShowTvdbId, getShowStats, getLibraries, getLibraryById, findLibraryByPath, insertLibrary, updateLibrary, getLibraryItemCounts, getUntaggedCounts } from './db.js';
+import { getNextPending, getMovieById, getMovies, markReviewed, markSkipped, markSkippedAsReviewed, markSkippedAsPending, getStats, setMovieMatch, getShows, getShowById, getNextPendingShow, markShowReviewed, markShowSkipped, markShowSkippedAsReviewed, markShowSkippedAsPending, setShowMatch, setShowTvdbId, getShowStats, getLibraries, getLibraryById, findLibraryByPath, insertLibrary, updateLibrary, getLibraryItemCounts, getUntaggedCounts } from './db.js';
 import { normalizeDir, isUnder, pathsConflict } from './paths.js';
-import { fetchArtwork, searchMovie, searchTvShow, fetchTvArtwork, fetchSeasonArtwork } from './tmdb.js';
+import { fetchArtwork, searchMovie, searchTvShow, fetchTvArtwork, fetchSeasonArtwork, fetchMovieDetails, fetchTvDetails } from './tmdb.js';
 import { getTvdbId, fetchTvDbSeriesArtwork, fetchTvDbSeasonArtwork } from './tvdb.js';
 import { downloadSelections } from './downloader.js';
 import { downloadTvSelections, findSeasonFolder } from './tvdownloader.js';
@@ -20,6 +20,34 @@ function findExisting(folder, names) {
     if (existsSync(full)) return full;
   }
   return null;
+}
+
+// Fix Match search criteria. With no query params this reproduces the old behaviour —
+// search on the row's stored title and year. `title`/`year` let the user override them;
+// a present-but-empty `year` deliberately means "search without a year filter".
+function searchCriteria(query, row) {
+  return {
+    title: query.title?.trim() || row.title,
+    year:  'year' in query ? (parseInt(query.year) || null) : row.year,
+  };
+}
+
+// A match chosen in the UI carries its title/year along; when they're missing (e.g. a
+// hand-rolled request) fall back to asking TMDB, best-effort.
+async function resolveMatch(body, fetchDetails) {
+  const tmdbId = String(body.tmdbId);
+  let { title, year } = body;
+
+  if (!title) {
+    try {
+      const details = await fetchDetails(tmdbId);
+      if (details) ({ name: title, year } = details);
+    } catch {
+      // best-effort — the id alone is enough to fix the match
+    }
+  }
+
+  return { tmdbId, title, year: year ?? null, manual: true };
 }
 
 const router = Router();
@@ -110,25 +138,28 @@ router.post('/movie/:id/select', async (req, res) => {
   }
 });
 
-// Search TMDB for movie matches
+// Search TMDB for movie matches — optionally with user-supplied title/year, or by TMDB id
 router.get('/movie/:id/search', async (req, res) => {
   const movie = getMovieById(req.params.id);
   if (!movie) return res.status(404).json({ error: 'Movie not found' });
   try {
-    const results = await searchMovie(movie.title, movie.year);
-    res.json(results);
+    if (req.query.tmdbId) {
+      const hit = await fetchMovieDetails(String(req.query.tmdbId));
+      return res.json(hit ? [hit] : []);
+    }
+    const { title, year } = searchCriteria(req.query, movie);
+    res.json(await searchMovie(title, year));
   } catch (err) {
     res.status(502).json({ error: 'TMDB search failed', detail: err.message });
   }
 });
 
 // Set the TMDB match for a movie
-router.post('/movie/:id/set-tmdb', (req, res) => {
+router.post('/movie/:id/set-tmdb', async (req, res) => {
   const movie = getMovieById(req.params.id);
   if (!movie) return res.status(404).json({ error: 'Movie not found' });
-  const { tmdbId } = req.body;
-  if (!tmdbId) return res.status(400).json({ error: 'tmdbId required' });
-  setMovieTmdbId(req.params.id, String(tmdbId));
+  if (!req.body.tmdbId) return res.status(400).json({ error: 'tmdbId required' });
+  setMovieMatch(req.params.id, await resolveMatch(req.body, fetchMovieDetails));
   res.json(getMovieById(req.params.id));
 });
 
@@ -293,8 +324,12 @@ router.get('/tv/:id/search', async (req, res) => {
   const show = getShowById(req.params.id);
   if (!show) return res.status(404).json({ error: 'Show not found' });
   try {
-    const results = await searchTvShow(show.title, show.year);
-    res.json(results);
+    if (req.query.tmdbId) {
+      const hit = await fetchTvDetails(String(req.query.tmdbId));
+      return res.json(hit ? [hit] : []);
+    }
+    const { title, year } = searchCriteria(req.query, show);
+    res.json(await searchTvShow(title, year));
   } catch (err) {
     res.status(502).json({ error: 'TMDB search failed', detail: err.message });
   }
@@ -305,7 +340,7 @@ router.post('/tv/:id/set-tmdb', async (req, res) => {
   if (!show) return res.status(404).json({ error: 'Show not found' });
   const { tmdbId } = req.body;
   if (!tmdbId) return res.status(400).json({ error: 'tmdbId required' });
-  setShowTmdbId(req.params.id, String(tmdbId));
+  setShowMatch(req.params.id, await resolveMatch(req.body, fetchTvDetails));
   if (process.env.TVDB_API_KEY) {
     try {
       const tvdbId = await getTvdbId(String(tmdbId));
